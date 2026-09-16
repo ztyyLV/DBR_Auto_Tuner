@@ -137,12 +137,16 @@ def estimate_trials(request: TuneRequest, profile: Dict[str, Any]) -> int:
 
 
 def fit_timeout(knobs: Dict[str, Any], measured: Score) -> Dict[str, Any]:
-    """Cap ``Timeout`` at twice the slowest page actually observed.
+    """Propose a ``Timeout`` of twice the slowest page actually observed.
 
-    A timeout only truncates work that runs past the cap, so setting it above
-    every page we measured cannot change what those pages decode - it just stops
-    an unseen pathological image from blocking a production caller for the
-    30 seconds an exhaustive probe configuration was allowed.
+    Only a proposal: the caller must re-measure with it and keep the original
+    if anything stopped decoding. ``Timeout`` is not a pure wall-clock cap --
+    the SDK budgets its decoding effort against it, so lowering it can cost a
+    page that had finished well inside the old limit.
+
+    The point of fitting it at all is that an exhaustive probe configuration may
+    have been allowed 30 seconds, and shipping that to production means one
+    pathological image can block a caller for half a minute.
     """
     tail = max(measured.max_ms, measured.p95_ms * 1.5, 250.0)
     fitted = int(min(60000, max(500, round(tail * 2.0 / 100.0) * 100)))
@@ -213,10 +217,28 @@ def tune(request: TuneRequest, log: Optional[Log] = None,
     for key, trial in result.variants.items():
         name = VARIANT_TEMPLATE_NAMES.get(key, key)
         run = serial_engine.run(trial.knobs, name=name, serial=True)
-        scores[key] = score_run(run, result.truth)
-        emit_knobs[key] = fit_timeout(trial.knobs, scores[key])
-        fitted = emit_knobs[key]["timeout_ms"]
-        note = "" if fitted == trial.knobs["timeout_ms"] else f"   Timeout -> {fitted}ms"
+        measured = score_run(run, result.truth)
+        emit_knobs[key], scores[key] = trial.knobs, measured
+        note = ""
+
+        # Fitting the timeout down is only safe if it is then *verified*.
+        # Timeout is not a pure wall-clock cap: the SDK budgets its decoding
+        # effort against it, so a lower value can stop a page decoding even
+        # though that page finished far inside the old limit. Emitting a
+        # template scored under a timeout it does not carry would overstate it.
+        candidate = fit_timeout(trial.knobs, measured)
+        fitted = candidate["timeout_ms"]
+        if fitted != trial.knobs["timeout_ms"]:
+            check = score_run(serial_engine.run(candidate, name=name, serial=True),
+                              result.truth)
+            if (check.found >= measured.found
+                    and check.pages_partial >= measured.pages_partial):
+                emit_knobs[key], scores[key] = candidate, check
+                note = f"   Timeout -> {fitted}ms (verified)"
+            else:
+                note = (f"   Timeout kept at {trial.knobs['timeout_ms']}ms: "
+                        f"{fitted}ms lost "
+                        f"{measured.pages_partial - check.pages_partial} page(s)")
         log(f"    {key:<12} {scores[key].summary()}{note}")
     if "max_recall" in scores:
         scores["best"] = scores["max_recall"]
@@ -283,8 +305,16 @@ def evaluate(images: List[str], template: str | Dict[str, Any],
 
     engine = Engine(data, resolve_license(license), jobs=jobs)
     run = engine.run_document(document, name=name, serial=jobs == 1)
-    truth = (gt.load(ground_truth, data) if ground_truth
-             else gt.infer([run]))
+    if ground_truth:
+        truth = gt.load(ground_truth, data)
+    else:
+        # Truth inferred from a single run, so the corroboration rule that
+        # protects against spurious weak-checksum reads cannot be satisfied by
+        # anything -- requiring two agreeing configurations here would silently
+        # discard every Code 39 / Codabar / ITF read and report the template as
+        # having missed those pages. Judge this run on its own output; the
+        # minimum-payload-length guard still applies.
+        truth = gt.infer([run], min_agree_risky=1)
     return score_run(run, truth)
 
 

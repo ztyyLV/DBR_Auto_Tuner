@@ -423,3 +423,33 @@ class FolderPicker(unittest.TestCase):
         chosen = [os.path.join(self.root, "with_images", "a.jpg"),
                   os.path.join(self.root, "top.bmp")]
         self.assertEqual(preview(chosen)["pages"], 2)
+
+
+class SingleRunInference(unittest.TestCase):
+    """Judging one run against truth inferred from that same run.
+
+    The corroboration rule that protects against spurious weak-checksum reads
+    needs two agreeing configurations. With only one run nothing can ever clear
+    it, so applying it there would discard every Code 39 / Codabar / ITF read
+    and report those pages as missed.
+    """
+
+    def test_two_agreeing_runs_still_required_by_default(self):
+        run = make_run("solo", {"a.jpg": [("BF_CODE_39", "ABC12345")]})
+        self.assertEqual(gt.infer([run]).total, 0)
+
+    def test_relaxing_agreement_admits_the_read(self):
+        run = make_run("solo", {"a.jpg": [("BF_CODE_39", "ABC12345")]})
+        self.assertEqual(gt.infer([run], min_agree_risky=1).total, 1)
+
+    def test_length_guard_still_applies_when_agreement_is_relaxed(self):
+        run = make_run("solo", {"a.jpg": [("BF_PHARMACODE_TWO_TRACK", "27")]})
+        self.assertEqual(gt.infer([run], min_agree_risky=1).total, 0)
+
+    def test_coverage_would_otherwise_be_understated(self):
+        run = make_run("solo", {"a.jpg": [("BF_CODE_39", "ABC12345")],
+                                "b.jpg": [("BF_QR_CODE", "SOLID")]})
+        strict = score(run, gt.infer([run]))
+        relaxed = score(run, gt.infer([run], min_agree_risky=1))
+        self.assertEqual(strict.page_coverage, 0.5)      # the Code 39 page vanishes
+        self.assertEqual(relaxed.page_coverage, 1.0)     # both pages produced a read

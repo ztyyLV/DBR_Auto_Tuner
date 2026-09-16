@@ -83,10 +83,19 @@ dbr-autotune selfcheck                    # validate the search space against th
 ```python
 from dbr_autotune import TuneRequest, tune
 
-outcome = tune(TuneRequest(images=["./photos"], out="./out"))
+outcome = tune(TuneRequest(images=["./photos"], out="./out", jobs=1))
 print(outcome.final.page_coverage)                      # 0.75
 template = outcome.templates()["AutoTuned_MaxRecall"]   # dict, ready for the SDK
 ```
+
+`import dbr_autotune` costs about a millisecond and does **not** load the SDK —
+the native libraries are imported only when a run actually starts, so importing
+this in a project that may never tune anything is free.
+
+[`examples/integrate.py`](examples/integrate.py) is a runnable walk-through of
+the three things integrators normally want: tune a folder and get the template
+as a dict, hand that dict straight to the SDK and decode with it, then re-check
+a stored template later as a regression gate.
 
 `tune()` takes `log=` for human lines and `progress=` for structured events —
 that is the whole interface the web UI is built on, so anything it does, you can
@@ -349,10 +358,13 @@ picks the luckiest one rather than the best one.
 Everything user-facing comes from a final **single-threaded** pass over each
 emitted template, so it is comparable to a production single-image call.
 
-`Timeout` is then fitted to twice the slowest page of that pass. A timeout only
-truncates work that runs past it, so raising it above every page measured cannot
-change what those pages decode — it just stops an unseen pathological image from
-blocking a caller for the 30 seconds an exhaustive probe was allowed.
+`Timeout` is then fitted to twice the slowest page of that pass — and the
+template is **re-measured with it**, keeping the original if anything stopped
+decoding. `Timeout` is not a pure wall-clock cap: the SDK budgets its decoding
+effort against it, so a lower value can cost a page that had finished well
+inside the old limit. Fitting it matters because an exhaustive probe may have
+been allowed 30 seconds, and shipping that means one bad image can block a
+caller for half a minute.
 
 Multi-page documents are decoded with one `CaptureMultiPages` call per file, so
 the per-page time for a PDF or TIFF is the file total divided evenly across its
