@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional
 
 from . import __version__, api, template as T
 from .api import TuneRequest, tune
+from .scoring import Score
 from .repro import compare_environments, describe_drift, environment_fingerprint
 
 VERBS = {"ui", "tune", "cv", "evaluate", "replay", "selfcheck", "version"}
@@ -129,6 +130,18 @@ def build_parser() -> argparse.ArgumentParser:
     ev.add_argument("--license", default=None)
     ev.add_argument("--ground-truth", default=None)
     ev.add_argument("--json", action="store_true", help="print machine-readable output")
+    g = ev.add_argument_group(
+        "regression gates - any breach exits 1, so this works as a CI check")
+    g.add_argument("--min-coverage", type=float, default=None, metavar="FRACTION",
+                   help="fail if fewer than this fraction of pages produced a read "
+                        "(e.g. 0.95)")
+    g.add_argument("--min-recall", type=float, default=None, metavar="FRACTION",
+                   help="fail if recall falls below this; only meaningful together "
+                        "with --ground-truth")
+    g.add_argument("--max-mean-ms", type=float, default=None, metavar="MS",
+                   help="fail if the mean decode time exceeds this")
+    g.add_argument("--max-p95-ms", type=float, default=None, metavar="MS",
+                   help="fail if the p95 decode time exceeds this")
 
     rp = subs.add_parser("replay", help="repeat a run recorded in results.json")
     rp.add_argument("results", help="a results.json written by an earlier run")
@@ -212,19 +225,43 @@ def cmd_cv(args: argparse.Namespace) -> int:
     return 0
 
 
+def _gate_failures(args: argparse.Namespace, score: Score) -> List[str]:
+    """Which declared thresholds this run breached, in plain words."""
+    checks = [
+        ("page coverage", args.min_coverage, score.page_coverage, "below", "{:.1%}"),
+        ("recall", args.min_recall, score.recall, "below", "{:.1%}"),
+        ("mean decode", args.max_mean_ms, score.mean_ms, "above", "{:.0f} ms"),
+        ("p95 decode", args.max_p95_ms, score.p95_ms, "above", "{:.0f} ms"),
+    ]
+    failures = []
+    for label, limit, actual, direction, fmt in checks:
+        if limit is None:
+            continue
+        breached = actual < limit if direction == "below" else actual > limit
+        if breached:
+            failures.append(f"{label} {fmt.format(actual)} is {direction} the "
+                            f"required {fmt.format(limit)}")
+    return failures
+
+
 def cmd_evaluate(args: argparse.Namespace) -> int:
     score = api.evaluate(args.images, args.template, license=args.license,
                          ground_truth=args.ground_truth)
+    failures = _gate_failures(args, score)
+
     if args.json:
         print(json.dumps({
             "template": args.template, "images": args.images,
             "recall": round(score.recall, 4),
             "page_coverage": round(score.page_coverage, 4),
             "pages_read": score.pages_partial, "pages_total": score.pages_total,
+            "pages_undetermined": score.pages_undetermined,
             "mean_ms": round(score.mean_ms, 1), "p95_ms": round(score.p95_ms, 1),
+            "passed": not failures, "failures": failures,
             "environment": environment_fingerprint(),
         }, indent=2))
-        return 0
+        return 1 if failures else 0
+
     print(f"  template          {args.template}")
     print(f"  pages            {score.pages_total}")
     print(f"  page coverage    {score.page_coverage:6.1%}  "
@@ -234,6 +271,14 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     if not args.ground_truth:
         print("  note: without --ground-truth the truth set is this template's own output,")
         print("        so recall is 100% by construction. Page coverage is the real number.")
+    if failures:
+        print("\n  FAILED:")
+        for failure in failures:
+            print(f"    - {failure}")
+        return 1
+    if any(v is not None for v in (args.min_coverage, args.min_recall,
+                                   args.max_mean_ms, args.max_p95_ms)):
+        print("\n  all declared thresholds met")
     return 0
 
 
