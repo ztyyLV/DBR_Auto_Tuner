@@ -360,6 +360,26 @@ pages. Totals and means are exact.
 
 ---
 
+## Known issue: an intermittent SDK crash under `--jobs > 1`
+
+Driving the Dynamsoft SDK from several threads at once — which is what
+`--jobs` does, with one router per worker — occasionally segfaults the whole
+process. It is intermittent, not tied to a particular image or setting: the
+same command crashed three runs out of five on one sample set and completed
+cleanly on the others.
+
+When it happens the process dies outright, with no Python traceback (exit 139).
+From the web UI that takes the server down with it and the run is lost.
+
+Until this is fixed with process isolation, `--jobs 1` is the reliable setting:
+
+```bash
+dbr-autotune ./images --jobs 1
+```
+
+It is slower by roughly the worker count, and it has not crashed in any run so
+far.
+
 ## Security
 
 The web UI browses the filesystem and starts long jobs, so it:

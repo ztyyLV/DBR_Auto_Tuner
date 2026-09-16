@@ -31,6 +31,7 @@ input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);ou
 button{cursor:pointer;background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:550}
 button.ghost{background:var(--panel);color:var(--ink);border-color:var(--line);font-weight:400}
 button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{font-size:15px;padding:10px 22px;border-radius:8px}
 .hint{color:var(--muted);font-size:12px}
 .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
 .kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
@@ -120,7 +121,7 @@ dl.glossary dd{margin:0;color:var(--muted)}
 
   <!-- ---------------- setup ---------------- -->
   <section id="setup">
-    <h2>1 &middot; Pick your images</h2>
+    <h2>Your images</h2>
     <div class="panel">
       <div class="row">
         <div class="field wide">
@@ -161,8 +162,17 @@ dl.glossary dd{margin:0;color:var(--muted)}
       <div id="previewOut" class="hint" style="margin-top:10px"></div>
     </div>
 
-    <h2>2 &middot; Choose how hard to look</h2>
-    <div class="panel">
+    <div class="row" style="margin-top:18px;align-items:center">
+      <button id="start" class="primary">Generate template</button>
+      <button class="ghost hidden" id="cancel">Cancel</button>
+      <span class="hint" id="startHint">Pick a folder above, then press this.
+        Everything else is decided for you.</span>
+    </div>
+
+    <details class="panel" style="margin-top:16px">
+      <summary>Advanced settings &mdash; you should not need to touch these</summary>
+      <p class="hint" style="margin:2px 0 12px">Sensible values are chosen from your
+         images. Change something here only if you already know why.</p>
       <div class="row">
         <div class="field">
           <label for="out">Output folder</label>
@@ -175,14 +185,13 @@ dl.glossary dd{margin:0;color:var(--muted)}
             <option value="tune">Tune once</option>
             <option value="crossval">Cross-validate</option>
           </select>
-          <span class="why">“Tune once” gives you a settings file.
-            “Cross-validate” instead tells you how trustworthy the result is — see below.</span>
+          <span class="why">“Tune once” gives you a settings file. “Cross-validate”
+            instead measures how trustworthy the result is, and writes no template.</span>
         </div>
         <div class="field hidden" id="kwrap">
           <label for="k">Folds</label>
           <input type="number" id="k" value="5" min="2" max="10">
-          <span class="why">Split the images into this many groups. Costs this many
-            full runs.</span>
+          <span class="why">Costs this many full runs.</span>
         </div>
         <div class="field">
           <label for="budget">Effort</label>
@@ -191,75 +200,55 @@ dl.glossary dd{margin:0;color:var(--muted)}
             <option value="full" selected>Full</option>
             <option value="deep">Deep</option>
           </select>
-          <span class="why">How many settings combinations to try. Quick ≈ 60,
-            Full ≈ 115, Deep ≈ 210. More rarely helps much past Full.</span>
+          <span class="why">Settings combinations to try: Quick ≈ 60, Full ≈ 115,
+            Deep ≈ 210. Past Full it rarely helps.</span>
         </div>
         <div class="field">
           <label for="jobs">Workers</label>
           <input type="number" id="jobs" value="0" min="0" max="64">
-          <span class="why">Images decoded at once. 0 = half your CPU cores.
-            Higher is faster but the on-screen timings get noisier.</span>
+          <span class="why">Images decoded at once. 0 = half your CPU cores.</span>
         </div>
         <div class="field">
           <label for="holdout">Set aside</label>
           <select id="holdout">
+            <option value="auto" selected>Auto</option>
             <option value="0">Nothing</option>
-            <option value="0.25" selected>25% of files</option>
+            <option value="0.25">25% of files</option>
             <option value="0.3">30% of files</option>
           </select>
-          <span class="why">Keep some images out of the search, then test on them.
-            Catches settings that only work on the exact images you tuned with.</span>
+          <span class="why" id="holdoutWhy">Keeps some images out of the search as a
+            fresh test. Auto decides from how many files you have.</span>
+        </div>
+        <div class="field">
+          <label for="formats">Barcode types</label>
+          <input type="text" id="formats" placeholder="auto-detect" spellcheck="false"
+                 style="min-width:210px">
+          <span class="why">e.g. <span class="mono">BF_DATAMATRIX</span>. Naming them
+            skips the search for types you do not have.</span>
+        </div>
+        <div class="field">
+          <label for="expected">Codes per image</label>
+          <input type="number" id="expected" placeholder="auto" min="0" max="999">
+          <span class="why">If every photo has exactly one, put 1.</span>
+        </div>
+        <div class="field wide">
+          <label for="gt">Known correct answers (file)</label>
+          <input type="text" id="gt" placeholder="optional CSV or JSON" spellcheck="false">
+          <span class="why">A CSV of <span class="mono">filename,barcode text</span>.
+            Without it the tool cannot detect a <em>wrong</em> read.</span>
+        </div>
+        <div class="field">
+          <label for="seed">Seed</label>
+          <input type="number" id="seed" value="0" min="0">
+          <span class="why">Fixes which images get set aside.</span>
+        </div>
+        <div class="field">
+          <label for="timebudget">Stop after (seconds)</label>
+          <input type="number" id="timebudget" value="0" min="0" step="60">
+          <span class="why">0 = no limit. Cutting it short is safe.</span>
         </div>
       </div>
-
-      <details style="margin-top:14px">
-        <summary>Tell it what you already know — each answer makes the run faster and better</summary>
-        <div class="row" style="margin-top:10px">
-          <div class="field">
-            <label for="formats">Barcode types</label>
-            <input type="text" id="formats" placeholder="leave blank to auto-detect"
-                   spellcheck="false" style="min-width:230px">
-            <span class="why">e.g. <span class="mono">BF_DATAMATRIX BF_QR_CODE</span>.
-              If you know the type, say so — searching for types you do not have is
-              usually the single biggest waste of time.</span>
-          </div>
-          <div class="field">
-            <label for="expected">Barcodes per image</label>
-            <input type="number" id="expected" placeholder="auto" min="0" max="999">
-            <span class="why">If every photo has exactly one, put 1 — the reader can
-              then stop as soon as it finds it.</span>
-          </div>
-          <div class="field wide">
-            <label for="gt">Known correct answers (file)</label>
-            <input type="text" id="gt"
-                   placeholder="optional CSV or JSON — the single most useful thing you can provide"
-                   spellcheck="false">
-            <span class="why">A CSV of <span class="mono">filename,barcode text</span>.
-              Without it the tool has to guess which images contain a barcode, and it
-              cannot detect a <em>wrong</em> read at all.</span>
-          </div>
-          <div class="field">
-            <label for="seed">Seed</label>
-            <input type="number" id="seed" value="0" min="0">
-            <span class="why">Fixes which images get set aside, so a repeat run splits
-              them the same way.</span>
-          </div>
-          <div class="field">
-            <label for="timebudget">Stop after (seconds)</label>
-            <input type="number" id="timebudget" value="0" min="0" step="60">
-            <span class="why">0 = no limit. It always keeps the best settings found so
-              far, so cutting it short is safe.</span>
-          </div>
-        </div>
-      </details>
-
-      <div class="row" style="margin-top:16px">
-        <button id="start">Start</button>
-        <button class="ghost hidden" id="cancel">Cancel</button>
-        <span class="hint" id="startHint">Expect a few minutes. Large photos are slow —
-          12-megapixel images take about a second each, per setting tried.</span>
-      </div>
-    </div>
+    </details>
   </section>
 
   <!-- ---------------- progress ---------------- -->
@@ -387,7 +376,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) =>
 const pct = (v) => (v == null ? "—" : (v * 100).toFixed(1) + "%");
 const ms = (v) => (v == null ? "—" : Math.round(v).toLocaleString());
 
-let currentRun = null, source = null;
+let currentRun = null, source = null, lastPreview = null;
 let pickerPath = null, selectedFiles = new Set();
 
 /* ---------- folder picker ---------- */
@@ -508,15 +497,22 @@ async function checkPath() {
   $("previewOut").textContent = "checking…";
   try {
     const query = list.map((p) => "images=" + encodeURIComponent(p)).join("&");
-    const d = await api("/api/preview?" + query);
+    const d = await api("/api/preview?" + query +
+                        "&effort=" + encodeURIComponent($("budget").value));
+    lastPreview = d;
     if (d.error) { $("previewOut").innerHTML = `<span class="down">${esc(d.error)}</span>`; return; }
     if (!d.pages) {
       $("previewOut").innerHTML = `<span class="down">No readable images found here.
         Check the path, or open a subfolder in Browse.</span>`;
       return;
     }
-    let text = `Will process <b>${d.pages}</b> page(s) from <b>${d.files}</b> file(s).`;
+    const rec = d.recommended || {};
+    let text = `Will process <b>${d.pages}</b> image(s)`;
+    if (d.files !== d.pages) text += ` from <b>${d.files}</b> file(s)`;
+    if (rec.estimate_text) text += ` &middot; expect <b>${rec.estimate_text}</b>`;
+    text += ".";
     if (d.skipped) text += ` ${d.skipped} unsupported file(s) ignored.`;
+    if (rec.holdout_why) $("holdoutWhy").textContent = "Auto: " + rec.holdout_why;
     if (d.pages < 10) text += ` <span class="warn">That is few — results from under
       ~20 images are easily luck. Add more if you can.</span>`;
     if (d.uncounted?.length)
@@ -529,6 +525,8 @@ async function checkPath() {
   } catch (e) { $("previewOut").innerHTML = `<span class="down">${esc(e.message)}</span>`; }
 }
 
+$("budget").onchange = () => { if (lastPreview) checkPath(); };
+
 $("mode").onchange = () => {
   const cv = $("mode").value === "crossval";
   $("kwrap").classList.toggle("hidden", !cv);
@@ -536,9 +534,15 @@ $("mode").onchange = () => {
     ? `Cross-validation repeats the whole process once per fold, so budget roughly
        <b>K times</b> the duration of a single run. It produces a trustworthiness
        figure, not a settings file.`
-    : `Expect a few minutes. Large photos are slow — 12-megapixel images take about a
-       second each, per setting tried.`;
+    : "Pick a folder above, then press this. Everything else is decided for you.";
 };
+
+function holdoutFraction() {
+  const chosen = $("holdout").value;
+  if (chosen !== "auto") return Number(chosen) || 0;
+  // "Auto" defers to the server, which decides from how many files there are.
+  return (lastPreview && lastPreview.recommended && lastPreview.recommended.holdout) || 0;
+}
 
 /* ---------- start / cancel ---------- */
 $("start").onclick = async () => {
@@ -554,7 +558,7 @@ $("start").onclick = async () => {
     images: list,
     out: $("out").value.trim() || null,
     jobs: Number($("jobs").value) || 0,
-    holdout: Number($("holdout").value) || 0,
+    holdout: holdoutFraction(),
     rounds,
     max_trials: $("budget").value === "quick" ? 60 : 200,
     time_budget_s: Number($("timebudget").value) || 0,
@@ -807,7 +811,7 @@ async function refreshRuns() {
     }
     const e = d.environment || {};
     $("envline").textContent =
-      `dbr-autotune ${e.autotune} · SDK ${e.dbr_bundle} · Python ${e.python} · ${e.platform} · ${e.cpu_count} cores`;
+      `dbr-autotune ${e.autotune} · ${e.sdk} ${e.sdk_version} · Python ${e.python} · ${e.platform} · ${e.cpu_count} cores`;
   } catch (e) { /* server going away is not worth a popup */ }
 }
 

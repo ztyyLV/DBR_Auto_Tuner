@@ -32,6 +32,7 @@ from urllib.parse import parse_qs, urlparse
 
 from . import dataset as ds
 from .api import TuneRequest, tune
+from .engine import image_stats
 from .config import IMAGE_EXT
 from .crossval import cross_validate
 from .repro import environment_fingerprint
@@ -177,7 +178,8 @@ def _count_images(path: str, cap: int = 4000) -> int:
             for index, entry in enumerate(entries):
                 if index >= cap:
                     break
-                if entry.is_file(follow_symlinks=False) and                         os.path.splitext(entry.name)[1].lower() in IMAGE_EXT:
+                if (entry.is_file(follow_symlinks=False)
+                        and os.path.splitext(entry.name)[1].lower() in IMAGE_EXT):
                     total += 1
     except (OSError, PermissionError):
         return 0
@@ -243,19 +245,71 @@ def browse(path: Optional[str], show_hidden: bool = False) -> Dict[str, Any]:
             "shortcuts": _shortcuts(), "drives": _drives()}
 
 
+# Measured on two real runs (12 MP phone photos and small sample scans) with
+# the default worker count: cost per page-decode is a fixed overhead plus a
+# term proportional to resolution.
+_SECONDS_PER_PAGE_DECODE = 0.05          # fixed, per page per configuration
+_SECONDS_PER_MEGAPIXEL = 0.023
+_TRIALS = {"quick": 60, "full": 115, "deep": 210}
+
+
+def recommend(pages: int, files: int, megapixels: float,
+              effort: str = "full") -> Dict[str, Any]:
+    """Settings a first-time user should not have to think about.
+
+    Holding pages back is how overfitting gets caught, but it also takes them
+    away from the search. Below roughly twenty files the loss outweighs the
+    check, and the honest page-coverage figure already tells the same story, so
+    it is only switched on once there is enough data for it to mean something.
+    """
+    if files >= 20:
+        holdout, why = 0.25, f"{files} files is enough to hold a quarter back as a check"
+    else:
+        holdout, why = 0.0, (f"only {files} file(s) - all of them are used for tuning, "
+                             f"since holding any back would cost more than it proves")
+
+    trials = _TRIALS.get(effort, _TRIALS["full"])
+    per_decode = _SECONDS_PER_PAGE_DECODE + _SECONDS_PER_MEGAPIXEL * max(megapixels, 0.1)
+    tuning_pages = max(1, int(pages * (1 - holdout)))
+    seconds = trials * tuning_pages * per_decode
+    return {"holdout": holdout, "holdout_why": why,
+            "estimate_seconds": int(seconds),
+            "estimate_text": _duration(seconds)}
+
+
+def _duration(seconds: float) -> str:
+    if seconds < 90:
+        return "under a minute"
+    minutes = seconds / 60.0
+    if minutes < 10:
+        return f"about {round(minutes)} minutes"
+    if minutes < 60:
+        return f"about {int(round(minutes / 5.0) * 5)} minutes"
+    return f"about {minutes / 60.0:.1f} hours"
+
+
 def preview(images: List[str], recursive: bool = True,
-            limit: Optional[int] = None) -> Dict[str, Any]:
+            limit: Optional[int] = None, effort: str = "full") -> Dict[str, Any]:
     """What a run would actually process, before committing to it."""
     try:
         data = ds.discover(images, recursive=recursive, limit=limit)
     except FileNotFoundError as exc:
         return {"error": str(exc)}
+    if not len(data):
+        return {"pages": 0, "files": 0, "skipped": len(data.skipped),
+                "uncounted": [], "sample_labels": []}
+
+    profile = image_stats(data)
+    megapixels = profile.get("megapixels") or 1.0
+    files = len({s.path for s in data.samples})
     return {
         "pages": len(data),
-        "files": len({s.path for s in data.samples}),
+        "files": files,
+        "megapixels": megapixels,
         "skipped": len(data.skipped),
         "uncounted": [os.path.basename(p) for p in data.uncounted],
         "sample_labels": [s.label for s in data.samples[:12]],
+        "recommended": recommend(len(data), files, megapixels, effort),
     }
 
 
@@ -322,8 +376,10 @@ class Handler(BaseHTTPRequestHandler):
             images = [i for i in (params.get("images") or []) if i.strip()]
             if not images:
                 return self._send(200, {"error": "no path given"})
-            return self._send(200, preview(images,
-                                           (params.get("recursive") or ["1"])[0] != "0"))
+            return self._send(200, preview(
+                images,
+                (params.get("recursive") or ["1"])[0] != "0",
+                effort=(params.get("effort") or ["full"])[0]))
         if route == "/api/runs":
             return self._send(200, {"runs": self.manager.list(),
                                     "environment": environment_fingerprint()})
