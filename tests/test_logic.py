@@ -453,3 +453,89 @@ class SingleRunInference(unittest.TestCase):
         relaxed = score(run, gt.infer([run], min_agree_risky=1))
         self.assertEqual(strict.page_coverage, 0.5)      # the Code 39 page vanishes
         self.assertEqual(relaxed.page_coverage, 1.0)     # both pages produced a read
+
+
+class WorkerCrashRecovery(unittest.TestCase):
+    """A crashed decode worker must not lose the run, and must not be mistaken
+    for a bad configuration.
+
+    The pool is faked here: the point is the parent's reaction to
+    BrokenProcessPool, not the SDK's ability to produce one.
+    """
+
+    def setUp(self):
+        from concurrent.futures.process import BrokenProcessPool
+        from dbr_autotune.engine import Engine
+
+        self.BrokenProcessPool = BrokenProcessPool
+        self.engine = Engine.__new__(Engine)          # skip the licence handshake
+        self.engine.jobs = 4
+        self.engine.crashes = 0
+        self.engine._poisoned = set()
+        self.engine._pool = None
+        self.engine._pool_workers = 0
+        self.engine.log = lambda _m: None
+        self.asked_for = []
+
+    def _pool_that(self, behaviour):
+        """behaviour(workers) -> results, or raises."""
+        test = self
+
+        class FakePool:
+            def __init__(self, workers):
+                self.workers = workers
+
+            def submit(self, *_a, **_k):
+                class F:
+                    def result(_self):
+                        return True
+                return F()
+
+            def map(self, _fn, tasks):
+                return behaviour(self.workers, list(tasks))
+
+        def pool_for(workers):
+            test.asked_for.append(workers)
+            return FakePool(workers)
+
+        self.engine._pool_for = pool_for
+        self.engine._shutdown = lambda: None
+
+    def _tasks(self):
+        return [("a.jpg", [Sample("a.jpg")], "{}", "k", "n")]
+
+    def test_parallel_crash_is_retried_on_one_worker(self):
+        def behaviour(workers, tasks):
+            if workers > 1:
+                raise self.BrokenProcessPool("worker died")
+            return [[PageResult(tasks[0][1][0])]]
+
+        self._pool_that(behaviour)
+        out = self.engine._map(self._tasks(), 4, "{}", "k")
+        self.assertEqual(self.asked_for, [4, 1])       # escalated down to serial
+        self.assertEqual(out[0][0].error, "")          # a real result, not a failure
+        self.assertEqual(self.engine.crashes, 1)
+        self.assertNotIn("k", self.engine._poisoned)   # config is not blamed
+
+    def test_crash_on_one_worker_too_is_recorded_and_remembered(self):
+        def behaviour(_workers, _tasks):
+            raise self.BrokenProcessPool("worker died")
+
+        self._pool_that(behaviour)
+        out = self.engine._map(self._tasks(), 4, "{}", "k")
+        self.assertIn("crashed", out[0][0].error)
+        self.assertIn("k", self.engine._poisoned)
+
+        # A second attempt must cost nothing at all.
+        before = len(self.asked_for)
+        again = self.engine._map(self._tasks(), 4, "{}", "k")
+        self.assertEqual(len(self.asked_for), before)  # no pool was even created
+        self.assertIn("earlier", again[0][0].error)
+
+    def test_a_serial_run_does_not_escalate(self):
+        def behaviour(_workers, _tasks):
+            raise self.BrokenProcessPool("worker died")
+
+        self._pool_that(behaviour)
+        self.engine._map(self._tasks(), 1, "{}", "k")
+        self.assertEqual(self.asked_for, [1])          # nothing below one worker

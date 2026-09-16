@@ -27,9 +27,8 @@ def step1_tune(folder: str) -> dict:
         out=None,             # None = compute everything, write nothing to disk
         rounds=1,             # keep the example quick
         max_trials=40,
-        # jobs=1 until the intermittent SDK crash under concurrency is fixed;
-        # see "Known issue" in the README.
-        jobs=1,
+        jobs=2,          # decoding happens in child processes; a crashed
+                         # worker is retried, it does not kill the run
     )
 
     # `log` gets human-readable lines, `progress` gets structured events. Both

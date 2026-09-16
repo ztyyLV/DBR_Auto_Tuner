@@ -189,7 +189,7 @@ def tune(request: TuneRequest, log: Optional[Log] = None,
           "holdout_pages": len(holdout), "profile": profile,
           "estimated_trials": total_estimate})
 
-    engine = Engine(tune_set, licence, jobs=jobs)
+    engine = Engine(tune_set, licence, jobs=jobs, log=log)
     options = request.to_options()
     tuner = Tuner(engine, options, log=log)
 
@@ -258,6 +258,9 @@ def tune(request: TuneRequest, log: Optional[Log] = None,
                                                  if t.phase == "probe"])
         log(f"    holdout      {holdout_score.summary()}")
 
+    engine.close()
+    serial_engine.close()
+
     outcome = TuneOutcome(request=request, result=result, scores=scores,
                           emit_knobs=emit_knobs, holdout=holdout_score)
     outcome.summary = _summary(outcome, data, tune_set, holdout, profile,
@@ -278,11 +281,11 @@ def evaluate_on(pages: ds.Dataset, knobs: Dict[str, Any], licence: str,
     configurations plus the candidate itself - so a code only present here still
     counts, and the candidate is not simply graded against its own output.
     """
-    engine = Engine(pages, licence, jobs=1)
-    probe_runs = [engine.run(k, name=f"probe{i}")
-                  for i, k in enumerate(probe_knobs or [])]
-    truth = gt.infer(probe_runs, options.min_agree_risky, options.min_weak_length)
-    run = engine.run(knobs, name="Evaluation", serial=True)
+    with Engine(pages, licence, jobs=1) as engine:
+        probe_runs = [engine.run(k, name=f"probe{i}")
+                      for i, k in enumerate(probe_knobs or [])]
+        truth = gt.infer(probe_runs, options.min_agree_risky, options.min_weak_length)
+        run = engine.run(knobs, name="Evaluation", serial=True)
     truth.absorb(run, options.min_agree_risky, options.min_weak_length)
     return score_run(run, truth)
 
@@ -303,8 +306,8 @@ def evaluate(images: List[str], template: str | Dict[str, Any],
         else template
     name = document["CaptureVisionTemplates"][0]["Name"]
 
-    engine = Engine(data, resolve_license(license), jobs=jobs)
-    run = engine.run_document(document, name=name, serial=jobs == 1)
+    with Engine(data, resolve_license(license), jobs=jobs) as engine:
+        run = engine.run_document(document, name=name, serial=jobs == 1)
     if ground_truth:
         truth = gt.load(ground_truth, data)
     else:

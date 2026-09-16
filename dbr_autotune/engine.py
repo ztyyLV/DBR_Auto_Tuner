@@ -1,17 +1,23 @@
 """Running a template over a dataset and collecting per-page results.
 
-One :class:`Engine` owns a pool of thread-local ``CaptureVisionRouter``
-instances - the SDK router is not safe to share across threads, but one router
-per worker is. Results of identical templates are memoised by fingerprint so the
-search never pays twice for the same configuration.
+Decoding happens in child processes, never in the parent. Driving the SDK
+concurrently segfaults it - the same configurations that kill a pool of four
+decode a whole set cleanly in one process - and a segfault takes its process
+down with no traceback. With the work isolated, a crash costs one worker: the
+parent sees a BrokenProcessPool and re-runs that configuration on a single
+worker rather than scoring it zero, since a crash says nothing about whether the
+configuration is any good.
+
+Results of identical templates are memoised by fingerprint so the search never
+pays twice for the same configuration.
 """
 from __future__ import annotations
 
 import json
 import os
-import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List
 
@@ -87,19 +93,156 @@ class TemplateRejected(RuntimeError):
     """The SDK refused the generated template JSON."""
 
 
+# --------------------------------------------------------------------------
+# Worker side. Everything below runs in a child process, never in the parent.
+#
+# Driving the SDK from several threads of one process segfaults it
+# intermittently, and a segfault takes the whole process down - from the web UI
+# that meant losing the server and the run with it. So decoding is isolated in
+# child processes and the parent never loads a router at all, not even for a
+# single-worker run. A crash then costs one worker, which the parent notices as
+# a BrokenProcessPool and recovers from.
+# --------------------------------------------------------------------------
+
+_worker: Dict[str, Any] = {"router": None, "loaded": None}
+
+
+def _worker_init(license_key: str) -> None:
+    """Runs once per child process."""
+    from .sdk import LicenseManager
+    code, message = LicenseManager.init_license(license_key)
+    if code not in (_EC_OK, _EC_JSON_KEY_WARNING):
+        raise RuntimeError(f"license initialisation failed ({code}): {message}")
+
+
+def _worker_router(template_json: str, load_key: str):
+    """The child's single router, with ``template_json`` loaded into it."""
+    from .sdk import CaptureVisionRouter
+    if _worker["router"] is None:
+        _worker["router"] = CaptureVisionRouter()
+        _worker["loaded"] = None
+    if _worker["loaded"] != load_key:
+        code, message = _worker["router"].init_settings(template_json)
+        if code not in (_EC_OK, _EC_JSON_KEY_WARNING):
+            raise TemplateRejected(f"({code}) {message}")
+        _worker["loaded"] = load_key
+    return _worker["router"]
+
+
+def _worker_validate(template_json: str, load_key: str) -> bool:
+    """Load a template in a child so a malformed one cannot crash the parent."""
+    _worker_router(template_json, load_key)
+    return True
+
+
+def _worker_decode(task: tuple) -> List[PageResult]:
+    path, samples, template_json, load_key, name = task
+    multipage = samples[0].multipage
+    try:
+        router = _worker_router(template_json, load_key)
+    except TemplateRejected as exc:
+        return [PageResult(s, error=str(exc)) for s in samples]
+
+    started = time.perf_counter()
+    try:
+        if multipage:
+            array = router.capture_multi_pages(path, name)
+            raw = list(array.get_results()) if array else []
+        else:
+            raw = [router.capture(path, name)]
+    except Exception as exc:                        # SDK / IO failure
+        elapsed = (time.perf_counter() - started) * 1000.0
+        share = elapsed / len(samples)
+        return [PageResult(s, ms=share, error=f"{type(exc).__name__}: {exc}")
+                for s in samples]
+    elapsed = (time.perf_counter() - started) * 1000.0
+
+    by_page: Dict[int, Any] = {}
+    for index, captured in enumerate(raw):
+        if captured is None:
+            continue
+        by_page[_page_number(captured, index)] = captured
+
+    share = elapsed / len(samples)
+    pages: List[PageResult] = []
+    for sample in samples:
+        page = PageResult(sample, ms=share)
+        captured = by_page.get(sample.page)
+        if captured is not None:
+            code = captured.get_error_code()
+            if code not in (_EC_OK, _EC_JSON_KEY_WARNING):
+                page.error = f"({code}) {captured.get_error_string()}"
+            page.detections = _detections(captured)
+        pages.append(page)
+    return pages
+
+
+def _page_number(captured, fallback: int) -> int:
+    try:
+        tag = captured.get_original_image_tag()
+        number = tag.get_page_number()
+        if number is not None and number >= 0:
+            return number
+    except Exception:
+        pass
+    return fallback
+
+
+def _detections(captured) -> List[Detection]:
+    out: List[Detection] = []
+    items = captured.get_items() or []
+    for item in items:
+        try:
+            text = item.get_text()
+        except Exception:
+            continue
+        if text is None:
+            continue
+        detection = Detection(
+            text=text,
+            format=canonical_format(_safe(item, "get_format_string", "")))
+        detection.confidence = _safe(item, "get_confidence", 0) or 0
+        detection.module_size = _safe(item, "get_module_size", 0) or 0
+        detection.is_dpm = bool(_safe(item, "is_dpm", False))
+        detection.is_mirrored = bool(_safe(item, "is_mirrored", False))
+        try:
+            points = item.get_location().points
+            detection.location = [
+                [int(p.x), int(p.y)] if hasattr(p, "x") else [int(p[0]), int(p[1])]
+                for p in points
+            ]
+        except Exception:
+            pass
+        out.append(detection)
+    return out
+
+
+# --------------------------------------------------------------------------
+# Parent side.
+# --------------------------------------------------------------------------
+
 class Engine:
-    """Executes templates against a dataset."""
+    """Executes templates against a dataset, decoding in child processes."""
 
     def __init__(self, dataset: Dataset, license_key: str, jobs: int = 1,
-                 progress: Callable[[str], None] | None = None):
+                 progress: Callable[[str], None] | None = None,
+                 log: Callable[[str], None] | None = None):
         self.dataset = dataset
         self.license_key = license_key
         self.jobs = max(1, jobs)
         self.progress = progress or (lambda _msg: None)
+        self.log = log or (lambda _msg: None)
         self._cache: Dict[str, RunResult] = {}
-        self._local = threading.local()
         self._trials = 0
+        self._pool: Any = None
+        self._pool_workers = 0
+        self.crashes = 0                 # worker processes lost to a hard crash
+        self._poisoned: set = set()      # templates that crashed even serially
 
+        # Check the licence here as well as in each worker. It is only a
+        # handshake, not the decoding path that crashes, and doing it in the
+        # parent turns a bad key into a clear message instead of a worker that
+        # dies on startup and surfaces as an unexplained broken pool.
         from .sdk import LicenseManager
         code, message = LicenseManager.init_license(license_key)
         if code not in (_EC_OK, _EC_JSON_KEY_WARNING):
@@ -112,25 +255,36 @@ class Engine:
         for samples in self._by_file.values():
             samples.sort(key=lambda s: s.page)
 
-    # -- router pool -------------------------------------------------------
+    # -- process pool ------------------------------------------------------
 
-    def _router(self):
-        router = getattr(self._local, "router", None)
-        if router is None:
-            from .sdk import CaptureVisionRouter
-            router = CaptureVisionRouter()
-            self._local.router = router
-            self._local.loaded = None
-        return router
+    def _pool_for(self, workers: int):
+        if self._pool is not None and self._pool_workers == workers:
+            return self._pool
+        self._shutdown()
+        self._pool = ProcessPoolExecutor(
+            max_workers=workers, initializer=_worker_init,
+            initargs=(self.license_key,))
+        self._pool_workers = workers
+        return self._pool
 
-    def _prepare(self, template_json: str, key: str):
-        router = self._router()
-        if getattr(self._local, "loaded", None) != key:
-            code, message = router.init_settings(template_json)
-            if code not in (_EC_OK, _EC_JSON_KEY_WARNING):
-                raise TemplateRejected(f"({code}) {message}")
-            self._local.loaded = key
-        return router
+    def _shutdown(self) -> None:
+        if self._pool is not None:
+            try:
+                self._pool.shutdown(wait=False, cancel_futures=True)
+            except Exception:
+                pass
+            self._pool = None
+            self._pool_workers = 0
+
+    def close(self) -> None:
+        """Release the worker processes. Safe to call more than once."""
+        self._shutdown()
+
+    def __enter__(self) -> "Engine":
+        return self
+
+    def __exit__(self, *_exc) -> None:
+        self.close()
 
     # -- execution ---------------------------------------------------------
 
@@ -166,112 +320,63 @@ class Engine:
             return self._cache[cache_key]
 
         load_key = f"{fingerprint}|{name}"
-        # Validate once up front so a bad template fails fast, not per worker.
-        self._prepare(template_json, load_key)
+        workers = 1 if serial else self.jobs
+        tasks = [(path, self._by_file[path], template_json, load_key, name)
+                 for path in self._by_file]
 
         result = RunResult(name=name, fingerprint=fingerprint, serial=serial)
         started = time.perf_counter()
-        paths = list(self._by_file)
-
-        def work(path: str) -> List[PageResult]:
-            return self._decode_file(path, template_json, load_key, name)
-
-        if serial or self.jobs == 1:
-            for path in paths:
-                for page in work(path):
-                    result.pages[page.sample.key] = page
-        else:
-            with ThreadPoolExecutor(max_workers=self.jobs) as pool:
-                for pages in pool.map(work, paths):
-                    for page in pages:
-                        result.pages[page.sample.key] = page
-
+        pages = self._map(tasks, workers, template_json, load_key)
+        for group in pages:
+            for page in group:
+                result.pages[page.sample.key] = page
         result.wall_ms = (time.perf_counter() - started) * 1000.0
+
         self._trials += 1
         if use_cache:
             self._cache[cache_key] = result
         return result
 
-    def _decode_file(self, path: str, template_json: str, load_key: str,
-                     name: str) -> List[PageResult]:
-        samples = self._by_file[path]
-        multipage = samples[0].multipage
-        try:
-            router = self._prepare(template_json, load_key)
-        except TemplateRejected as exc:
-            return [PageResult(s, error=str(exc)) for s in samples]
+    def _map(self, tasks: List[tuple], workers: int, template_json: str,
+             load_key: str) -> List[List[PageResult]]:
+        """Run every task in child processes, surviving a worker crash.
 
-        started = time.perf_counter()
-        try:
-            if multipage:
-                array = router.capture_multi_pages(path, name)
-                raw = list(array.get_results()) if array else []
-            else:
-                raw = [router.capture(path, name)]
-        except Exception as exc:                        # SDK / IO failure
-            elapsed = (time.perf_counter() - started) * 1000.0
-            share = elapsed / len(samples)
-            return [PageResult(s, ms=share, error=f"{type(exc).__name__}: {exc}") for s in samples]
-        elapsed = (time.perf_counter() - started) * 1000.0
+        Concurrency is what makes the SDK fall over: the same configurations
+        that segfault a pool of four decode a whole set cleanly in one process.
+        So a crash is not treated as "this configuration is broken" - scoring it
+        zero would throw away a configuration that may well be the best one - it
+        is retried on a single worker, which has not crashed in any run. Only if
+        that also dies is the configuration recorded as failed, and it is then
+        remembered so the search never pays for it twice.
+        """
+        if load_key in self._poisoned:
+            return self._failed(tasks, "configuration crashed a worker earlier")
 
-        by_page: Dict[int, Any] = {}
-        for index, captured in enumerate(raw):
-            if captured is None:
-                continue
-            by_page[self._page_number(captured, index)] = captured
-
-        share = elapsed / len(samples)
-        pages: List[PageResult] = []
-        for sample in samples:
-            page = PageResult(sample, ms=share)
-            captured = by_page.get(sample.page)
-            if captured is not None:
-                code = captured.get_error_code()
-                if code not in (_EC_OK, _EC_JSON_KEY_WARNING):
-                    page.error = f"({code}) {captured.get_error_string()}"
-                page.detections = self._detections(captured)
-            pages.append(page)
-        return pages
+        attempts = [workers] if workers == 1 else [workers, 1]
+        for index, count in enumerate(attempts):
+            pool = self._pool_for(count)
+            try:
+                # Validate in a child too, so a malformed template cannot take
+                # the parent with it.
+                pool.submit(_worker_validate, template_json, load_key).result()
+                return list(pool.map(_worker_decode, tasks))
+            except TemplateRejected:
+                raise
+            except BrokenProcessPool:
+                self.crashes += 1
+                self._shutdown()
+                if index + 1 < len(attempts):
+                    self.log("    ! a decode worker crashed; re-running this "
+                             "configuration on a single worker")
+                    continue
+        self._poisoned.add(load_key)
+        self.log("    ! it crashed on a single worker too; recording this "
+                 "configuration as failed and moving on")
+        return self._failed(tasks, "decode worker crashed")
 
     @staticmethod
-    def _page_number(captured, fallback: int) -> int:
-        try:
-            tag = captured.get_original_image_tag()
-            number = tag.get_page_number()
-            if number is not None and number >= 0:
-                return number
-        except Exception:
-            pass
-        return fallback
-
-    @staticmethod
-    def _detections(captured) -> List[Detection]:
-        out: List[Detection] = []
-        items = captured.get_items() or []
-        for item in items:
-            try:
-                text = item.get_text()
-            except Exception:
-                continue
-            if text is None:
-                continue
-            detection = Detection(
-                text=text,
-                format=canonical_format(_safe(item, "get_format_string", "")))
-            detection.confidence = _safe(item, "get_confidence", 0) or 0
-            detection.module_size = _safe(item, "get_module_size", 0) or 0
-            detection.is_dpm = bool(_safe(item, "is_dpm", False))
-            detection.is_mirrored = bool(_safe(item, "is_mirrored", False))
-            try:
-                points = item.get_location().points
-                detection.location = [
-                    [int(p.x), int(p.y)] if hasattr(p, "x") else [int(p[0]), int(p[1])]
-                    for p in points
-                ]
-            except Exception:
-                pass
-            out.append(detection)
-        return out
+    def _failed(tasks: List[tuple], reason: str) -> List[List[PageResult]]:
+        return [[PageResult(s, error=reason) for s in task[1]] for task in tasks]
 
 
 def _safe(obj, method: str, default):

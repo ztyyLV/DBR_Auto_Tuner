@@ -372,25 +372,35 @@ pages. Totals and means are exact.
 
 ---
 
-## Known issue: an intermittent SDK crash under `--jobs > 1`
+## Surviving an SDK crash
 
-Driving the Dynamsoft SDK from several threads at once — which is what
-`--jobs` does, with one router per worker — occasionally segfaults the whole
-process. It is intermittent, not tied to a particular image or setting: the
-same command crashed three runs out of five on one sample set and completed
-cleanly on the others.
+Decoding runs in **child processes, never in the parent** — not even for a
+single-worker run.
 
-When it happens the process dies outright, with no Python traceback (exit 139).
-From the web UI that takes the server down with it and the run is lost.
+This is not architectural neatness. Driving the SDK concurrently segfaults it:
+the same configurations that kill a pool of four decode the whole set cleanly in
+one process. A segfault takes its whole process down with no Python traceback
+(exit 139), so before this the crash killed the tuner outright, and from the web
+UI it took the server and the run with it.
 
-Until this is fixed with process isolation, `--jobs 1` is the reliable setting:
+Now a crash costs one worker. The parent sees a `BrokenProcessPool` and
+**re-runs that configuration on a single worker**, which has not crashed in any
+run. That matters for correctness as much as robustness: scoring a crashed
+configuration zero would discard one that might be the best available. Only if
+the single worker dies too is the configuration recorded as failed, and it is
+remembered so the search never pays for it twice.
 
-```bash
-dbr-autotune ./images --jobs 1
+```
+! a decode worker crashed; re-running this configuration on a single worker
+  scale_image=type=ST_SCALE_UP,edge=1080  recall 83.3%  mean 3840.6ms
 ```
 
-It is slower by roughly the worker count, and it has not crashed in any run so
-far.
+That configuration was then rejected on its merits — far too slow — rather than
+lost to a crash.
+
+The cost is one process spawn per worker plus a licence handshake each, paid
+once per run, and inter-process transfer of results. Per-page timings are taken
+inside the worker around the decode call, so they are unaffected.
 
 ## Security
 
