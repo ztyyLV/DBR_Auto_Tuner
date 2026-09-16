@@ -1,0 +1,63 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dbr-autotune"
+version = "1.1.0"
+description = "Derive a high read-rate, low-latency Dynamsoft Barcode Reader 11.x template from a folder of images"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["barcode", "dynamsoft", "dbr", "datamatrix", "dpm", "ocr", "tuning"]
+authors = [{ name = "dbr-autotune contributors" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "dynamsoft-capture-vision-bundle>=11.2",
+    "pillow>=10.0",
+]
+
+[project.optional-dependencies]
+# Page counting for PDFs. Without one of these a PDF is scored as a single page
+# and the run says so loudly.
+pdf = ["pypdf>=4.0"]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.urls]
+Homepage = "https://github.com/OWNER/dbr-autotune"
+Issues = "https://github.com/OWNER/dbr-autotune/issues"
+
+[project.scripts]
+dbr-autotune = "dbr_autotune.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["dbr_autotune*"]
+
+[tool.setuptools.package-data]
+dbr_autotune = ["web/*.html", "web/*.css", "web/*.js"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4"]
+ignore = ["B008"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

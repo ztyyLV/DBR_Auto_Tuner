@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.tmp/
+out/
+autotune_out/
+cpp_consumer/build/
+.venv/

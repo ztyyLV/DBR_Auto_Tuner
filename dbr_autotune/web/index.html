@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dbr-autotune</title>
+<style>
+:root{--bg:#f7f7f5;--panel:#fff;--ink:#1c1c1a;--muted:#6b6b66;--line:#e3e3de;
+      --good:#1f7a4d;--warn:#a8601b;--bad:#a52f2f;--accent:#2b5fd9;--code:#f2f2ef;}
+@media (prefers-color-scheme:dark){:root{
+      --bg:#17171a;--panel:#1f1f23;--ink:#e9e9e6;--muted:#9a9a94;--line:#33333a;
+      --good:#5fc08c;--warn:#d9a05b;--bad:#e07a7a;--accent:#7aa2f7;--code:#26262c;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+     font:14px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1180px;margin:0 auto;padding:28px 20px 60px}
+h1{font-size:20px;margin:0 0 2px}
+h2{font-size:12px;margin:26px 0 10px;text-transform:uppercase;
+   letter-spacing:.08em;color:var(--muted)}
+.sub{color:var(--muted);margin:0 0 22px;font-size:13px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+input,select,button{font:inherit;color:var(--ink);background:var(--panel);
+   border:1px solid var(--line);border-radius:7px;padding:7px 10px}
+input[type=number]{width:104px} input[type=text]{min-width:260px}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+button{cursor:pointer;background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:550}
+button.ghost{background:var(--panel);color:var(--ink);border-color:var(--line);font-weight:400}
+button:disabled{opacity:.45;cursor:not-allowed}
+.hint{color:var(--muted);font-size:12px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.kpi .n{font-size:24px;font-weight:650;letter-spacing:-.02em}
+.kpi .d{font-size:12px;color:var(--muted);margin-top:4px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:6px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.scroll{overflow:auto;max-height:340px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.bar{height:7px;border-radius:99px;background:var(--line);overflow:hidden;margin:10px 0 6px}
+.bar > i{display:block;height:100%;background:var(--accent);width:0;transition:width .25s}
+pre.log{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:12px;
+   margin:0;max-height:300px;overflow:auto;font-size:12px;line-height:1.45;
+   font-family:ui-monospace,Consolas,monospace;white-space:pre-wrap;word-break:break-word}
+.mono{font-family:ui-monospace,Consolas,monospace;font-size:12px}
+.crumb{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.crumb button{padding:3px 8px;font-size:12px}
+.dirlist{max-height:230px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.dirlist button{display:block;width:100%;text-align:left;border:0;border-radius:0;
+   background:transparent;color:var(--ink);font-weight:400;padding:6px 10px;
+   border-bottom:1px solid var(--line)}
+.dirlist button:hover{background:var(--code)}
+.up{color:var(--good)} .down{color:var(--bad)} .flat{color:var(--muted)} .warn{color:var(--warn)}
+.banner{border:1px solid var(--warn);border-radius:10px;padding:12px 14px;margin-top:12px;
+   background:color-mix(in srgb,var(--warn) 10%,var(--panel));font-size:13px}
+.banner.err{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,var(--panel))}
+.tag{display:inline-block;padding:1px 7px;border-radius:99px;font-size:11px;
+   border:1px solid var(--line);color:var(--muted);margin:0 4px 4px 0}
+details summary{cursor:pointer;color:var(--accent);font-size:13px}
+.hidden{display:none!important}
+.split{display:grid;gap:14px;grid-template-columns:1fr 1fr}
+@media (max-width:760px){.split{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>dbr-autotune</h1>
+  <p class="sub">Derive a Dynamsoft Barcode Reader 11.x template from a folder of
+     images. The result is plain DCV template JSON &mdash; load it from C++,
+     .NET, Java, Python or mobile.</p>
+
+  <!-- ---------------- setup ---------------- -->
+  <section id="setup">
+    <h2>1 &middot; Images</h2>
+    <div class="panel">
+      <div class="row">
+        <div class="field" style="flex:1">
+          <label for="imgpath">Folder or file</label>
+          <input type="text" id="imgpath" placeholder="C:\path\to\images" spellcheck="false">
+        </div>
+        <button class="ghost" id="browse">Browse…</button>
+        <button class="ghost" id="check">Check</button>
+      </div>
+      <div id="picker" class="hidden" style="margin-top:12px">
+        <div class="crumb" id="crumb"></div>
+        <div class="dirlist" id="dirlist"></div>
+      </div>
+      <div id="previewOut" class="hint" style="margin-top:10px"></div>
+    </div>
+
+    <h2>2 &middot; Options</h2>
+    <div class="panel">
+      <div class="row">
+        <div class="field">
+          <label for="out">Output folder</label>
+          <input type="text" id="out" value="autotune_out">
+        </div>
+        <div class="field">
+          <label for="mode">Mode</label>
+          <select id="mode">
+            <option value="tune">Tune once</option>
+            <option value="crossval">K-fold cross-validate</option>
+          </select>
+        </div>
+        <div class="field" id="kwrap" style="display:none">
+          <label for="k">Folds (K)</label>
+          <input type="number" id="k" value="5" min="2" max="10">
+        </div>
+        <div class="field">
+          <label for="budget">Budget</label>
+          <select id="budget">
+            <option value="quick">Quick (1 round)</option>
+            <option value="full" selected>Full (2 rounds)</option>
+            <option value="deep">Deep (4 rounds)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="jobs">Workers</label>
+          <input type="number" id="jobs" value="0" min="0" max="64">
+        </div>
+        <div class="field">
+          <label for="holdout">Holdout</label>
+          <select id="holdout">
+            <option value="0">None</option>
+            <option value="0.25" selected>25%</option>
+            <option value="0.3">30%</option>
+          </select>
+        </div>
+      </div>
+      <details style="margin-top:12px">
+        <summary>Priors &mdash; each one removes work and improves the result</summary>
+        <div class="row" style="margin-top:10px">
+          <div class="field">
+            <label for="formats">Symbologies (space separated)</label>
+            <input type="text" id="formats" placeholder="BF_DATAMATRIX BF_QR_CODE" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="expected">Codes per page</label>
+            <input type="number" id="expected" placeholder="auto" min="0" max="999">
+          </div>
+          <div class="field" style="flex:1">
+            <label for="gt">Ground-truth file (CSV/JSON)</label>
+            <input type="text" id="gt" placeholder="optional — enables false-positive detection" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="seed">Seed</label>
+            <input type="number" id="seed" value="0" min="0">
+          </div>
+          <div class="field">
+            <label for="timebudget">Time budget (s)</label>
+            <input type="number" id="timebudget" value="0" min="0" step="60">
+          </div>
+        </div>
+      </details>
+      <div class="row" style="margin-top:14px">
+        <button id="start">Start</button>
+        <button class="ghost hidden" id="cancel">Cancel</button>
+        <span class="hint" id="startHint"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------------- progress ---------------- -->
+  <section id="progress" class="hidden">
+    <h2>Progress</h2>
+    <div class="panel">
+      <div class="row" style="justify-content:space-between">
+        <b id="phase">starting…</b><span class="hint mono" id="counter"></span>
+      </div>
+      <div class="bar"><i id="barfill"></i></div>
+      <div class="hint" id="bestSoFar"></div>
+    </div>
+    <div class="split" style="margin-top:12px">
+      <div>
+        <h2>Log</h2>
+        <pre class="log" id="log"></pre>
+      </div>
+      <div>
+        <h2>Configurations tried</h2>
+        <div class="scroll"><table>
+          <thead><tr><th class="num">#</th><th>Phase</th><th>Configuration</th>
+            <th class="num">Recall</th><th class="num">ms</th></tr></thead>
+          <tbody id="trials"></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------------- result ---------------- -->
+  <section id="result" class="hidden">
+    <h2>Result</h2>
+    <div id="resultBody"></div>
+  </section>
+
+  <!-- ---------------- history ---------------- -->
+  <section>
+    <h2>Recent runs</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Started</th><th>Kind</th><th>Images</th><th>Status</th>
+        <th class="num">Elapsed</th><th></th></tr></thead>
+      <tbody id="runs"><tr><td colspan="6" class="hint">none yet</td></tr></tbody>
+    </table></div>
+    <p class="hint" id="envline"></p>
+  </section>
+</div>
+
+<script>
+const TOKEN = "__AUTOTUNE_TOKEN__";
+const $ = (id) => document.getElementById(id);
+const api = (path, opts = {}) => fetch(path, {
+  ...opts,
+  headers: {"X-Autotune-Token": TOKEN, "Content-Type": "application/json", ...(opts.headers || {})},
+}).then(async (r) => {
+  const data = await r.json().catch(() => ({error: `HTTP ${r.status}`}));
+  if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+  return data;
+});
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) =>
+  ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const pct = (v) => (v == null ? "—" : (v * 100).toFixed(1) + "%");
+const ms = (v) => (v == null ? "—" : Math.round(v).toLocaleString());
+
+let currentRun = null, source = null, trialCount = 0;
+
+/* ---------- folder picker ---------- */
+$("browse").onclick = () => {
+  const box = $("picker");
+  box.classList.toggle("hidden");
+  if (!box.classList.contains("hidden")) loadDir($("imgpath").value || null);
+};
+async function loadDir(path) {
+  let data;
+  try { data = await api("/api/browse?path=" + encodeURIComponent(path || "")); }
+  catch (e) { $("dirlist").innerHTML = `<div class="hint" style="padding:10px">${esc(e.message)}</div>`; return; }
+  if (data.error) { $("dirlist").innerHTML = `<div class="hint" style="padding:10px">${esc(data.error)}</div>`; return; }
+
+  const crumb = $("crumb");
+  crumb.innerHTML = "";
+  (data.drives || []).forEach((d) => {
+    const b = document.createElement("button");
+    b.className = "ghost"; b.textContent = d;
+    b.onclick = () => loadDir(d); crumb.appendChild(b);
+  });
+  if (data.parent) {
+    const up = document.createElement("button");
+    up.className = "ghost"; up.textContent = "↑ up";
+    up.onclick = () => loadDir(data.parent); crumb.appendChild(up);
+  }
+  const use = document.createElement("button");
+  use.textContent = `Use this folder (${data.images_here} image${data.images_here === 1 ? "" : "s"})`;
+  use.onclick = () => { $("imgpath").value = data.path; $("picker").classList.add("hidden"); checkPath(); };
+  crumb.appendChild(use);
+  const here = document.createElement("span");
+  here.className = "hint mono"; here.textContent = data.path;
+  crumb.appendChild(here);
+
+  $("dirlist").innerHTML = "";
+  data.entries.filter((e) => e.dir).forEach((e) => {
+    const b = document.createElement("button");
+    b.textContent = "📁  " + e.name;
+    b.onclick = () => loadDir(data.path.replace(/[\\/]+$/, "") + (data.path.includes("\\") ? "\\" : "/") + e.name);
+    $("dirlist").appendChild(b);
+  });
+  if (!$("dirlist").children.length)
+    $("dirlist").innerHTML = '<div class="hint" style="padding:10px">no subfolders</div>';
+}
+
+$("check").onclick = checkPath;
+$("imgpath").addEventListener("change", checkPath);
+async function checkPath() {
+  const path = $("imgpath").value.trim();
+  if (!path) { $("previewOut").textContent = ""; return; }
+  $("previewOut").textContent = "checking…";
+  try {
+    const d = await api("/api/preview?images=" + encodeURIComponent(path));
+    if (d.error) { $("previewOut").innerHTML = `<span class="down">${esc(d.error)}</span>`; return; }
+    let text = `<b>${d.pages}</b> page(s) across <b>${d.files}</b> file(s)`;
+    if (d.skipped) text += ` · ${d.skipped} unsupported file(s) ignored`;
+    if (d.uncounted?.length)
+      text += `<br><span class="warn">⚠ could not count pages in ${d.uncounted.length} file(s)
+               — install pypdf, otherwise they are scored as one page each.</span>`;
+    if (d.sample_labels?.length)
+      text += `<br><span class="mono">${esc(d.sample_labels.join(", "))}${d.pages > 12 ? " …" : ""}</span>`;
+    $("previewOut").innerHTML = text;
+  } catch (e) { $("previewOut").innerHTML = `<span class="down">${esc(e.message)}</span>`; }
+}
+
+$("mode").onchange = () => {
+  $("kwrap").style.display = $("mode").value === "crossval" ? "" : "none";
+  $("startHint").textContent = $("mode").value === "crossval"
+    ? "cross-validation runs the whole pipeline K times — expect roughly K× the duration"
+    : "";
+};
+
+/* ---------- start / cancel ---------- */
+$("start").onclick = async () => {
+  const path = $("imgpath").value.trim();
+  if (!path) { $("previewOut").innerHTML = '<span class="down">pick a folder first</span>'; return; }
+  const rounds = {quick: 1, full: 2, deep: 4}[$("budget").value];
+  const formats = $("formats").value.trim();
+  const expected = $("expected").value.trim();
+  const request = {
+    images: [path],
+    out: $("out").value.trim() || null,
+    jobs: Number($("jobs").value) || 0,
+    holdout: Number($("holdout").value) || 0,
+    rounds,
+    max_trials: $("budget").value === "quick" ? 60 : 200,
+    time_budget_s: Number($("timebudget").value) || 0,
+    seed: Number($("seed").value) || 0,
+    formats: formats ? formats.split(/\s+/) : null,
+    expected_count: expected === "" ? null : Number(expected),
+    ground_truth: $("gt").value.trim() || null,
+  };
+  const body = {request, cross_validate: $("mode").value === "crossval", k: Number($("k").value) || 5};
+
+  $("start").disabled = true;
+  $("result").classList.add("hidden");
+  $("trials").innerHTML = ""; $("log").textContent = ""; trialCount = 0;
+  try {
+    const run = await api("/api/start", {method: "POST", body: JSON.stringify(body)});
+    currentRun = run.id;
+    $("progress").classList.remove("hidden");
+    $("cancel").classList.remove("hidden");
+    $("phase").textContent = "starting…";
+    listen(run.id);
+    refreshRuns();
+  } catch (e) {
+    $("start").disabled = false;
+    $("previewOut").innerHTML = `<span class="down">${esc(e.message)}</span>`;
+  }
+};
+
+$("cancel").onclick = async () => {
+  if (!currentRun) return;
+  $("cancel").disabled = true;
+  try { await api(`/api/cancel/${currentRun}`, {method: "POST"}); } catch (e) {}
+};
+
+/* ---------- live events ---------- */
+function listen(id) {
+  if (source) source.close();
+  source = new EventSource(`/api/events/${id}?token=${encodeURIComponent(TOKEN)}`);
+  source.onmessage = (msg) => {
+    let ev; try { ev = JSON.parse(msg.data); } catch { return; }
+    handle(ev);
+  };
+  source.onerror = () => { /* the stream ends when the run finishes */ };
+}
+
+function handle(ev) {
+  switch (ev.event) {
+    case "start":
+      $("phase").textContent = `probing ${ev.tuning_pages} page(s)`;
+      $("counter").textContent = `0 / ~${ev.estimated_trials}`;
+      break;
+    case "trial": {
+      trialCount = ev.index;
+      const frac = ev.total ? Math.min(1, ev.index / ev.total) : 0;
+      $("barfill").style.width = (frac * 100).toFixed(1) + "%";
+      $("counter").textContent = `${ev.index} / ~${ev.total}`;
+      $("phase").textContent = ev.phase;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td class="num">${ev.index}</td><td>${esc(ev.phase)}</td>
+        <td class="mono">${esc(ev.name)}</td>
+        <td class="num">${pct(ev.recall)}</td><td class="num">${ms(ev.mean_ms)}</td>`;
+      $("trials").prepend(tr);
+      break;
+    }
+    case "phase":
+      $("phase").textContent = ev.phase === "measure"
+        ? "re-measuring single-threaded" : ev.phase;
+      break;
+    case "fold_start":
+      $("phase").textContent = `fold ${ev.fold}/${ev.k} — tuning on ${ev.tuned_on} pages`;
+      $("barfill").style.width = (((ev.fold - 1) / ev.k) * 100).toFixed(1) + "%";
+      break;
+    case "fold_done":
+      $("bestSoFar").innerHTML =
+        `fold ${ev.fold}/${ev.k} validated: coverage <b>${pct(ev.validation_page_coverage)}</b>,
+         recall ${pct(ev.validation_recall)}`;
+      break;
+    case "log": {
+      const el = $("log");
+      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 30;
+      el.textContent += ev.line + "\n";
+      if (atBottom) el.scrollTop = el.scrollHeight;
+      break;
+    }
+    case "finished":
+      $("barfill").style.width = "100%";
+      $("phase").textContent = ev.status;
+      $("start").disabled = false;
+      $("cancel").classList.add("hidden");
+      $("cancel").disabled = false;
+      if (source) { source.close(); source = null; }
+      render(ev);
+      refreshRuns();
+      break;
+  }
+}
+
+/* ---------- result rendering ---------- */
+function render(ev) {
+  const box = $("resultBody");
+  $("result").classList.remove("hidden");
+  if (ev.status !== "done") {
+    box.innerHTML = `<div class="banner err"><b>Run ${esc(ev.status)}.</b>
+      ${esc(ev.error || "See the log above.")}</div>`;
+    return;
+  }
+  const s = ev.summary || {};
+  box.innerHTML = s.schema === "dbr-autotune-cv/1" ? renderCv(s) : renderTune(s);
+}
+
+function renderTune(s) {
+  const sel = s.selected || {}, base = s.baseline, hold = s.holdout;
+  const delta = base ? (sel.recall - base.recall) * 100 : null;
+  const speed = base && sel.mean_ms ? base.mean_ms / sel.mean_ms : null;
+  let html = `<div class="grid">
+    ${kpi("Recall", pct(sel.recall), base
+        ? `<span class="${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : ""}${delta.toFixed(1)} pts vs SDK default</span>`
+        : `${sel.recall != null ? "" : "—"}`)}
+    ${kpi("Page coverage", pct(sel.page_coverage), "over every page in the set")}
+    ${kpi("Mean decode", ms(sel.mean_ms) + " ms", speed
+        ? `<span class="${speed >= 1 ? "up" : "down"}">${speed.toFixed(2)}× ${speed >= 1 ? "faster" : "slower"}</span>` : "")}
+    ${kpi("p95 decode", ms(sel.p95_ms) + " ms", hold ? `holdout ${pct(hold.page_coverage)} coverage` : "")}
+  </div>`;
+
+  if (s.undetermined_pages?.length) {
+    html += `<div class="banner"><b>${s.undetermined_pages.length} page(s) were never decoded
+      by any configuration.</b> The inferred truth set records them as carrying no barcode, so
+      the recall above excludes them — its denominator only counts codes something managed to
+      read. <b>If they do carry a barcode, real recall is at most ${pct(sel.recall_floor)}.</b>
+      Check them by eye, then supply a ground-truth file.
+      <div class="mono" style="margin-top:6px">${esc(s.undetermined_pages.join(", "))}</div></div>`;
+  }
+  if (s.withheld?.length) {
+    html += `<div class="banner">${s.withheld.length} read(s) in weak-checksum symbologies were
+      withheld from the truth set as probably spurious:
+      <div class="mono" style="margin-top:6px">${esc(s.withheld.slice(0, 8)
+        .map((w) => `${w.format} "${w.text}"`).join(", "))}</div></div>`;
+  }
+
+  html += `<h2>Templates written</h2><div class="scroll"><table>
+    <thead><tr><th>File</th><th class="num">Recall</th><th class="num">Coverage</th>
+      <th class="num">Mean ms</th><th>Tuned parameters</th></tr></thead><tbody>`;
+  for (const [key, v] of Object.entries(s.variants || {})) {
+    const tags = Object.entries(v.knobs || {})
+      .map(([k, val]) => `<span class="tag">${esc(k)}=${esc(JSON.stringify(val))}</span>`).join(" ");
+    html += `<tr><td class="mono">${esc(v.file || key)}</td><td class="num">${pct(v.recall)}</td>
+      <td class="num">${pct(v.page_coverage)}</td><td class="num">${ms(v.mean_ms)}</td>
+      <td>${tags || '<span class="tag">SDK defaults</span>'}</td></tr>`;
+  }
+  html += `</tbody></table></div>`;
+  html += `<p class="hint">Written to <span class="mono">${esc(s.request?.out || "")}</span>.
+    <a href="/api/report/${currentRun}?token=${encodeURIComponent(TOKEN)}" target="_blank">Open the full report →</a></p>`;
+  return html;
+}
+
+function renderCv(s) {
+  const v = s.validation || {};
+  const unstable = Object.entries(s.knob_stability || {})
+    .filter(([, counts]) => Object.keys(counts).length > 1).map(([k]) => k);
+  let html = `<div class="grid">
+    ${kpi("Page coverage", pct(v.page_coverage_mean),
+          `± ${pct(v.page_coverage_stdev)} across ${s.k} folds`)}
+    ${kpi("Worst fold", pct(v.page_coverage_min), `best ${pct(v.page_coverage_max)}`)}
+    ${kpi("Recall", pct(v.recall_mean), `± ${pct(v.recall_stdev)}`)}
+    ${kpi("Mean decode", ms(v.mean_ms) + " ms", `${s.pages} pages, seed ${s.seed}`)}
+  </div>`;
+  if (unstable.length) {
+    html += `<div class="banner"><b>${unstable.length} parameter(s) were chosen differently by
+      different folds:</b> <span class="mono">${esc(unstable.join(", "))}</span>.
+      Those were fitted to whichever images that fold happened to see, not to the problem.
+      More images would settle them.</div>`;
+  } else {
+    html += `<div class="banner" style="border-color:var(--good);
+      background:color-mix(in srgb,var(--good) 10%,var(--panel))">
+      Every fold settled on the same parameters — the configuration is a property of the
+      images, not of one particular split.</div>`;
+  }
+  html += `<h2>Folds</h2><div class="scroll"><table>
+    <thead><tr><th class="num">Fold</th><th class="num">Tuned on</th><th class="num">Validated on</th>
+      <th class="num">Train coverage</th><th class="num">Validation coverage</th>
+      <th class="num">Mean ms</th></tr></thead><tbody>`;
+  for (const f of s.folds || []) {
+    html += `<tr><td class="num">${f.fold}</td><td class="num">${f.tuned_on}</td>
+      <td class="num">${f.validated_on}</td><td class="num">${pct(f.train_page_coverage)}</td>
+      <td class="num">${pct(f.validation_page_coverage)}</td>
+      <td class="num">${ms(f.validation_mean_ms)}</td></tr>`;
+  }
+  html += `</tbody></table></div>`;
+  const consensus = Object.entries(s.consensus_knobs || {})
+    .map(([k, val]) => `<span class="tag">${esc(k)}=${esc(JSON.stringify(val))}</span>`).join(" ");
+  if (consensus) html += `<h2>Parameters a majority of folds agreed on</h2>
+    <div class="panel">${consensus}</div>`;
+  return html;
+}
+
+const kpi = (label, value, detail) =>
+  `<div class="panel kpi"><div class="l">${esc(label)}</div><div class="n">${value}</div>
+   <div class="d">${detail || ""}</div></div>`;
+
+/* ---------- history ---------- */
+async function refreshRuns() {
+  try {
+    const d = await api("/api/runs");
+    const body = $("runs");
+    if (!d.runs.length) { body.innerHTML = '<tr><td colspan="6" class="hint">none yet</td></tr>'; }
+    else {
+      body.innerHTML = d.runs.map((r) => `<tr>
+        <td>${new Date(r.started * 1000).toLocaleTimeString()}</td>
+        <td>${esc(r.kind)}</td>
+        <td class="mono"><span title="${esc(r.images.join(", "))}">${esc(r.images.join(", ").slice(0, 46))}</span></td>
+        <td class="${r.status === "done" ? "up" : r.status === "failed" ? "down" : "flat"}">${esc(r.status)}</td>
+        <td class="num">${r.elapsed_s}s</td>
+        <td>${r.status === "done" && r.out
+            ? `<a href="/api/report/${r.id}?token=${encodeURIComponent(TOKEN)}" target="_blank">report</a>` : ""}</td>
+      </tr>`).join("");
+    }
+    const e = d.environment || {};
+    $("envline").textContent =
+      `autotune ${e.autotune} · DBR bundle ${e.dbr_bundle} · Python ${e.python} · ${e.platform} · ${e.cpu_count} cores`;
+  } catch (e) { /* server going away is not worth a popup */ }
+}
+
+refreshRuns();
+$("mode").onchange();
+</script>
+</body>
+</html>
