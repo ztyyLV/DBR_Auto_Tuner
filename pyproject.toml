@@ -28,7 +28,11 @@ classifiers = [
 ]
 
 dependencies = [
-    "dynamsoft-capture-vision-bundle>=11.2",
+    # Dynamsoft ships the same Python API twice. The barcode bundle is
+    # versioned to match the Barcode Reader (11.x); the full capture-vision
+    # bundle is versioned separately (3.x) and also satisfies this tool -- see
+    # dbr_autotune/sdk.py, which accepts either.
+    "dynamsoft-barcode-reader-bundle>=11.0",
     "pillow>=10.0",
 ]
 

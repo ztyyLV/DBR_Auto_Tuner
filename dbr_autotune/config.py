@@ -42,7 +42,7 @@ def resolve_license(cli_value: str | None) -> str:
 # spellings, so normalise at the boundary.
 def _known_formats() -> frozenset:
     try:
-        from dynamsoft_capture_vision_bundle import EnumBarcodeFormat
+        from .sdk import EnumBarcodeFormat
         return frozenset(n for n in dir(EnumBarcodeFormat) if n.startswith("BF_"))
     except Exception:
         return frozenset()

@@ -13,7 +13,7 @@ from .config import resolve_license
 
 
 def main() -> int:
-    from dynamsoft_capture_vision_bundle import CaptureVisionRouter, LicenseManager
+    from .sdk import CaptureVisionRouter, LicenseManager
 
     code, message = LicenseManager.init_license(resolve_license(None))
     if code not in (0, -10077):

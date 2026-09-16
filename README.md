@@ -8,10 +8,47 @@ The emitted file is ordinary DCV template JSON. It is not Python-specific: load
 it from the **C++**, .NET, Java, Python or mobile edition of the SDK with
 `InitSettingsFromFile` and select the template by name.
 
+## Install
+
+**Not on PyPI** — install it from this repository:
+
 ```bash
-pip install dbr-autotune
+git clone https://github.com/ztyyLV/DBR_Auto_Tuner
+cd DBR_Auto_Tuner
+pip install -e ".[pdf]"
+```
+
+That registers a `dbr-autotune` command you can run from anywhere:
+
+```bash
 dbr-autotune ui
 ```
+
+Prefer not to install anything? Everything also works straight out of the
+clone, with `python -m` instead of the command name:
+
+```bash
+python -m dbr_autotune ui
+python -m dbr_autotune ./images -o out
+```
+
+The two are interchangeable; the rest of this README writes `dbr-autotune` for
+brevity.
+
+### The SDK dependency
+
+Dynamsoft ships the same Python API under two distribution names, versioned
+independently:
+
+| Package | Version line | Contents |
+|---|---|---|
+| `dynamsoft-barcode-reader-bundle` | 11.x | barcode only — what this installs |
+| `dynamsoft-capture-vision-bundle` | 3.x | the full suite, also fine |
+
+**Either one satisfies this tool** — it takes whichever it finds, so if you
+already have the full bundle you will not be made to install a second copy of
+the same native libraries. The version recorded in `results.json` says which
+one ran.
 
 ---
 
@@ -341,9 +378,9 @@ front of it.
 
 ## Requirements
 
-Python 3.10+. `pip install dbr-autotune` pulls in the SDK and Pillow.
-`pip install "dbr-autotune[pdf]"` adds PDF page counting — without it a PDF is
-scored as a single page and the run says so.
+Python 3.10+. `pip install -e .` from the clone pulls in the SDK and Pillow;
+the `[pdf]` extra adds PDF page counting — without it a PDF is scored as a
+single page and the run says so.
 
 Runs default to the public trial license from the DBR samples, which needs
 network access. Set `DBR_LICENSE` or pass `--license` for your own.

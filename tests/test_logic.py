@@ -270,14 +270,21 @@ class Reproducibility(unittest.TestCase):
     def test_fingerprint_has_the_fields_that_move_results(self):
         from dbr_autotune.repro import environment_fingerprint
         fingerprint = environment_fingerprint()
-        for key in ("autotune", "dbr_bundle", "python", "platform", "cpu_count"):
+        for key in ("autotune", "sdk", "sdk_version", "python", "platform", "cpu_count"):
             self.assertIn(key, fingerprint)
+
+    def test_fingerprint_names_which_sdk_bundle_was_used(self):
+        # Dynamsoft ships the same API under two distribution names, and they
+        # are versioned independently, so recording the version alone would be
+        # ambiguous between "11.2" and "3.2".
+        from dbr_autotune.repro import environment_fingerprint
+        self.assertIn("dynamsoft", environment_fingerprint()["sdk"])
 
     def test_environment_drift_is_described(self):
         from dbr_autotune.repro import compare_environments, describe_drift
-        diff = compare_environments({"dbr_bundle": "11.2", "python": "3.12.2"},
-                                    {"dbr_bundle": "11.6", "python": "3.12.2"})
-        self.assertEqual(set(diff), {"dbr_bundle"})
+        diff = compare_environments({"sdk_version": "11.2", "python": "3.12.2"},
+                                    {"sdk_version": "11.6", "python": "3.12.2"})
+        self.assertEqual(set(diff), {"sdk_version"})
         self.assertIn("SDK version", describe_drift(diff))
         self.assertEqual(describe_drift({}), "environments match")
 

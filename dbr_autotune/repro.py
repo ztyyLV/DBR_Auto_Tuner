@@ -15,31 +15,23 @@ from typing import Any, Dict
 from . import __version__
 
 
-def sdk_version() -> str:
-    """Version of the installed Dynamsoft bundle, or why it could not be read."""
+def sdk_info() -> tuple:
+    """(distribution name, version) of whichever Dynamsoft bundle is in use."""
     try:
-        import dynamsoft_capture_vision_bundle as bundle
-    except Exception as exc:                                  # not installed
-        return f"unavailable ({type(exc).__name__})"
-    for attr in ("__version__", "version", "VERSION"):
-        value = getattr(bundle, attr, None)
-        if isinstance(value, str) and value:
-            return value
-    # The package does not always expose a version attribute; fall back to the
-    # distribution metadata, which is what pip actually installed.
-    try:
-        from importlib.metadata import version
-        return version("dynamsoft-capture-vision-bundle")
-    except Exception:
-        return "unknown"
+        from .sdk import DISTRIBUTION, sdk_version
+    except ImportError as exc:                       # SDK not installed at all
+        return "none", f"unavailable ({exc.__class__.__name__})"
+    return DISTRIBUTION, sdk_version()
 
 
 def environment_fingerprint() -> Dict[str, Any]:
     """Everything that can move the numbers between two machines."""
     import os
+    distribution, version = sdk_info()
     return {
         "autotune": __version__,
-        "dbr_bundle": sdk_version(),
+        "sdk": distribution,
+        "sdk_version": version,
         "python": sys.version.split()[0],
         "platform": platform.platform(),
         "machine": platform.machine(),
@@ -62,7 +54,7 @@ def describe_drift(differences: Dict[str, Any]) -> str:
     if not differences:
         return "environments match"
     notes = []
-    if "dbr_bundle" in differences:
+    if {"sdk", "sdk_version"} & set(differences):
         notes.append("the SDK version differs, so read rates may differ too")
     if {"platform", "machine", "cpu_count"} & set(differences):
         notes.append("the hardware or OS differs, so timings are not comparable")

@@ -100,7 +100,7 @@ class Engine:
         self._local = threading.local()
         self._trials = 0
 
-        from dynamsoft_capture_vision_bundle import LicenseManager
+        from .sdk import LicenseManager
         code, message = LicenseManager.init_license(license_key)
         if code not in (_EC_OK, _EC_JSON_KEY_WARNING):
             raise RuntimeError(f"license initialisation failed ({code}): {message}")
@@ -117,7 +117,7 @@ class Engine:
     def _router(self):
         router = getattr(self._local, "router", None)
         if router is None:
-            from dynamsoft_capture_vision_bundle import CaptureVisionRouter
+            from .sdk import CaptureVisionRouter
             router = CaptureVisionRouter()
             self._local.router = router
             self._local.loaded = None
