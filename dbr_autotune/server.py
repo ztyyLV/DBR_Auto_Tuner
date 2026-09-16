@@ -149,40 +149,98 @@ class RunManager:
                          "summary": run.summary, "error": run.error})
 
 
-def browse(path: Optional[str]) -> Dict[str, Any]:
-    """Directory listing with image counts, for the folder picker."""
-    if not path:
-        path = os.path.expanduser("~")
-    path = os.path.abspath(os.path.expanduser(path))
-    if not os.path.isdir(path):
-        return {"error": f"not a directory: {path}", "path": path}
-
-    entries, images = [], 0
-    try:
-        for name in sorted(os.listdir(path)):
-            full = os.path.join(path, name)
-            try:
-                if os.path.isdir(full):
-                    entries.append({"name": name, "dir": True})
-                elif os.path.splitext(name)[1].lower() in IMAGE_EXT:
-                    images += 1
-            except OSError:
-                continue
-    except PermissionError:
-        return {"error": f"permission denied: {path}", "path": path}
-
-    parent = os.path.dirname(path)
-    return {"path": path, "parent": parent if parent != path else None,
-            "entries": entries[:500], "images_here": images,
-            "drives": _drives()}
-
-
 def _drives() -> List[str]:
+    """Roots to offer in the picker: drive letters on Windows, / elsewhere."""
     if os.name != "nt":
         return ["/"]
     import string
     return [f"{letter}:\\" for letter in string.ascii_uppercase
             if os.path.exists(f"{letter}:\\")]
+
+
+def _shortcuts() -> List[Dict[str, str]]:
+    """The handful of folders people actually keep images in."""
+    home = os.path.expanduser("~")
+    candidates = [("Home", home)]
+    for name in ("Desktop", "Downloads", "Pictures", "Documents"):
+        candidates.append((name, os.path.join(home, name)))
+    return [{"name": name, "path": path}
+            for name, path in candidates if os.path.isdir(path)]
+
+
+def _count_images(path: str, cap: int = 4000) -> int:
+    """Image files directly inside ``path``. Not recursive - this runs for every
+    subfolder of the directory being listed, so it has to stay cheap."""
+    total = 0
+    try:
+        with os.scandir(path) as entries:
+            for index, entry in enumerate(entries):
+                if index >= cap:
+                    break
+                if entry.is_file(follow_symlinks=False) and                         os.path.splitext(entry.name)[1].lower() in IMAGE_EXT:
+                    total += 1
+    except (OSError, PermissionError):
+        return 0
+    return total
+
+
+def browse(path: Optional[str], show_hidden: bool = False) -> Dict[str, Any]:
+    """Directory listing for the folder picker.
+
+    Every subfolder is reported with the number of images directly inside it, so
+    you can see where your pictures are without walking into each one. Image
+    files in the current folder are listed too - a run can target individual
+    files, not only whole folders.
+    """
+    if not path:
+        shortcuts = _shortcuts()
+        # Start somewhere with images in it rather than dumping the user in a
+        # home directory full of dot-folders.
+        best = max((s for s in shortcuts), key=lambda s: _count_images(s["path"]),
+                   default=None)
+        path = best["path"] if best and _count_images(best["path"]) else os.path.expanduser("~")
+    path = os.path.abspath(os.path.expanduser(path))
+    if not os.path.isdir(path):
+        return {"error": f"not a directory: {path}", "path": path,
+                "shortcuts": _shortcuts(), "drives": _drives()}
+
+    folders: List[Dict[str, Any]] = []
+    files: List[Dict[str, Any]] = []
+    try:
+        with os.scandir(path) as entries:
+            for entry in entries:
+                hidden = entry.name.startswith(".")
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        if hidden and not show_hidden:
+                            continue
+                        folders.append({"name": entry.name,
+                                        "path": entry.path,
+                                        "images": _count_images(entry.path)})
+                    elif os.path.splitext(entry.name)[1].lower() in IMAGE_EXT:
+                        files.append({"name": entry.name, "path": entry.path,
+                                      "kb": round(entry.stat().st_size / 1024)})
+                except (OSError, PermissionError):
+                    continue
+    except PermissionError:
+        return {"error": f"permission denied: {path}", "path": path,
+                "shortcuts": _shortcuts(), "drives": _drives()}
+
+    folders.sort(key=lambda f: f["name"].lower())
+    files.sort(key=lambda f: f["name"].lower())
+    hidden_count = 0
+    if not show_hidden:
+        try:
+            hidden_count = sum(1 for n in os.listdir(path)
+                               if n.startswith(".") and os.path.isdir(os.path.join(path, n)))
+        except OSError:
+            hidden_count = 0
+
+    parent = os.path.dirname(path)
+    return {"path": path, "parent": parent if parent != path else None,
+            "folders": folders[:500], "files": files[:500],
+            "images_here": len(files), "hidden_folders": hidden_count,
+            "shortcuts": _shortcuts(), "drives": _drives()}
 
 
 def preview(images: List[str], recursive: bool = True,
@@ -257,9 +315,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(403, {"error": "bad or missing token"})
 
         if route == "/api/browse":
-            return self._send(200, browse((params.get("path") or [None])[0]))
+            return self._send(200, browse(
+                (params.get("path") or [None])[0],
+                show_hidden=(params.get("hidden") or ["0"])[0] == "1"))
         if route == "/api/preview":
-            images = params.get("images") or []
+            images = [i for i in (params.get("images") or []) if i.strip()]
+            if not images:
+                return self._send(200, {"error": "no path given"})
             return self._send(200, preview(images,
                                            (params.get("recursive") or ["1"])[0] != "0"))
         if route == "/api/runs":

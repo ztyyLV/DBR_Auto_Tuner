@@ -4,8 +4,8 @@
 //
 //   dbr_verify <template.json> <image folder> [template name] [-license KEY]
 //
-// The template file is the one emitted by `python -m autotune`; nothing in it
-// is Python specific.
+// The template file is the one emitted by `dbr-autotune`; nothing in it is
+// Python specific.
 
 #if defined(_WIN32) || defined(_WIN64)
 #define NOMINMAX

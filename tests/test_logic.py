@@ -354,3 +354,65 @@ class UndeterminedPages(unittest.TestCase):
         self.assertEqual(s.pages_undetermined, 1)
         self.assertEqual(s.page_coverage, 0.5)       # honest
         self.assertEqual(s.recall_floor, 0.5)        # worst case if b.jpg has a code
+
+
+class FolderPicker(unittest.TestCase):
+    """The picker has to make it obvious where the images are, and let a user
+    choose individual files - not only whole folders."""
+
+    def setUp(self):
+        import tempfile
+        self.root = tempfile.mkdtemp()
+        os.makedirs(os.path.join(self.root, "with_images"))
+        os.makedirs(os.path.join(self.root, "empty"))
+        os.makedirs(os.path.join(self.root, ".hidden"))
+        for name in ("a.jpg", "b.PNG", "notes.txt"):
+            open(os.path.join(self.root, "with_images", name), "wb").close()
+        open(os.path.join(self.root, "top.bmp"), "wb").close()
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_folders_report_how_many_images_they_hold(self):
+        from dbr_autotune.server import browse
+        listing = browse(self.root)
+        counts = {f["name"]: f["images"] for f in listing["folders"]}
+        self.assertEqual(counts["with_images"], 2)     # the .txt does not count
+        self.assertEqual(counts["empty"], 0)
+
+    def test_hidden_folders_are_suppressed_but_counted(self):
+        from dbr_autotune.server import browse
+        visible = browse(self.root)
+        self.assertNotIn(".hidden", [f["name"] for f in visible["folders"]])
+        self.assertEqual(visible["hidden_folders"], 1)
+        shown = browse(self.root, show_hidden=True)
+        self.assertIn(".hidden", [f["name"] for f in shown["folders"]])
+
+    def test_image_files_are_listed_so_they_can_be_picked_individually(self):
+        from dbr_autotune.server import browse
+        listing = browse(os.path.join(self.root, "with_images"))
+        names = {f["name"] for f in listing["files"]}
+        self.assertEqual(names, {"a.jpg", "b.PNG"})
+        self.assertEqual(listing["images_here"], 2)
+        self.assertTrue(all("path" in f and "kb" in f for f in listing["files"]))
+
+    def test_navigation_aids_are_always_present(self):
+        from dbr_autotune.server import browse
+        listing = browse(self.root)
+        self.assertTrue(listing["drives"])
+        self.assertIn("Home", [s["name"] for s in listing["shortcuts"]])
+        self.assertTrue(listing["parent"])
+
+    def test_a_bad_path_still_returns_a_way_out(self):
+        from dbr_autotune.server import browse
+        listing = browse(os.path.join(self.root, "does-not-exist"))
+        self.assertIn("error", listing)
+        self.assertTrue(listing["shortcuts"])       # user is not stranded
+        self.assertTrue(listing["drives"])
+
+    def test_preview_accepts_individual_files(self):
+        from dbr_autotune.server import preview
+        chosen = [os.path.join(self.root, "with_images", "a.jpg"),
+                  os.path.join(self.root, "top.bmp")]
+        self.assertEqual(preview(chosen)["pages"], 2)

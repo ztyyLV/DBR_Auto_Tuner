@@ -19,9 +19,17 @@ dbr-autotune ui
 
 ### Web UI — `dbr-autotune ui`
 
-Opens a local page: pick a folder, press Start, watch every configuration as it
-is tried, read the result. No flags to learn. Loopback-only and token-guarded
-(see [Security](#security)).
+Opens a local page: browse to a folder, press Start, watch every configuration as
+it is tried, read the result. No flags to learn.
+
+The picker shows how many images sit in each subfolder, so you can see where your
+pictures are without opening each one, and individual files can be selected as
+well as whole folders. Every control carries a one-line explanation of what it
+does and why you would change it, and the page ends with a glossary of every term
+it uses — read rate, page coverage, undetermined, p95, DPM, ground truth, holdout
+— written for someone who has never used a barcode SDK.
+
+Loopback-only and token-guarded (see [Security](#security)).
 
 ### Command line
 

@@ -20,20 +20,24 @@ h2{font-size:12px;margin:26px 0 10px;text-transform:uppercase;
 .sub{color:var(--muted);margin:0 0 22px;font-size:13px}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
-.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field{display:flex;flex-direction:column;gap:4px;min-width:150px;flex:0 1 auto}
+.field.wide{flex:1 1 300px}
 .field label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.field .why{font-size:11.5px;color:var(--muted);line-height:1.4;max-width:230px}
 input,select,button{font:inherit;color:var(--ink);background:var(--panel);
    border:1px solid var(--line);border-radius:7px;padding:7px 10px}
 input[type=number]{width:104px} input[type=text]{min-width:260px}
-input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:-1px}
 button{cursor:pointer;background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:550}
 button.ghost{background:var(--panel);color:var(--ink);border-color:var(--line);font-weight:400}
 button:disabled{opacity:.45;cursor:not-allowed}
 .hint{color:var(--muted);font-size:12px}
-.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
 .kpi .l{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .kpi .n{font-size:24px;font-weight:650;letter-spacing:-.02em}
 .kpi .d{font-size:12px;color:var(--muted);margin-top:4px}
+.kpi .why{font-size:11.5px;color:var(--muted);margin-top:7px;padding-top:7px;
+   border-top:1px solid var(--line);line-height:1.4}
 table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{text-align:left;padding:6px 9px;border-bottom:1px solid var(--line);vertical-align:top}
 th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
@@ -45,119 +49,215 @@ pre.log{background:var(--code);border:1px solid var(--line);border-radius:10px;p
    margin:0;max-height:300px;overflow:auto;font-size:12px;line-height:1.45;
    font-family:ui-monospace,Consolas,monospace;white-space:pre-wrap;word-break:break-word}
 .mono{font-family:ui-monospace,Consolas,monospace;font-size:12px}
-.crumb{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
-.crumb button{padding:3px 8px;font-size:12px}
-.dirlist{max-height:230px;overflow:auto;border:1px solid var(--line);border-radius:8px}
-.dirlist button{display:block;width:100%;text-align:left;border:0;border-radius:0;
-   background:transparent;color:var(--ink);font-weight:400;padding:6px 10px;
-   border-bottom:1px solid var(--line)}
-.dirlist button:hover{background:var(--code)}
 .up{color:var(--good)} .down{color:var(--bad)} .flat{color:var(--muted)} .warn{color:var(--warn)}
 .banner{border:1px solid var(--warn);border-radius:10px;padding:12px 14px;margin-top:12px;
    background:color-mix(in srgb,var(--warn) 10%,var(--panel));font-size:13px}
 .banner.err{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 10%,var(--panel))}
+.banner.ok{border-color:var(--good);background:color-mix(in srgb,var(--good) 10%,var(--panel))}
 .tag{display:inline-block;padding:1px 7px;border-radius:99px;font-size:11px;
    border:1px solid var(--line);color:var(--muted);margin:0 4px 4px 0}
+.tag.sel{border-color:var(--accent);color:var(--accent)}
 details summary{cursor:pointer;color:var(--accent);font-size:13px}
+details[open] summary{margin-bottom:8px}
 .hidden{display:none!important}
 .split{display:grid;gap:14px;grid-template-columns:1fr 1fr}
 @media (max-width:760px){.split{grid-template-columns:1fr}}
+
+/* ---- folder picker ---- */
+.picker{margin-top:14px;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.picker .top{padding:10px 12px;border-bottom:1px solid var(--line);background:var(--code)}
+.picker .top .line{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+.picker .top .line:last-child{margin-bottom:0}
+.picker .top button{padding:3px 9px;font-size:12px}
+.picker .cols{display:grid;grid-template-columns:1fr 1fr}
+@media (max-width:700px){.picker .cols{grid-template-columns:1fr}}
+.picker .col{min-height:120px;max-height:260px;overflow:auto}
+.picker .col + .col{border-left:1px solid var(--line)}
+.picker .colhead{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--line);
+   padding:5px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.picker .item{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:0;
+   border-radius:0;background:transparent;color:var(--ink);font-weight:400;padding:6px 10px;
+   border-bottom:1px solid var(--line);cursor:pointer}
+.picker .item:hover{background:var(--code)}
+.picker .item .grow{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.picker .item .count{font-size:11px;color:var(--muted);white-space:nowrap}
+.picker .item.on{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.picker .item .use{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--accent);
+   color:var(--accent);background:transparent;font-weight:500}
+.picker .foot{padding:9px 12px;border-top:1px solid var(--line);background:var(--code);
+   display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.chk{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);cursor:pointer}
+.chk input{width:auto;min-width:0;padding:0;margin:0}
+dl.glossary{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px}
+dl.glossary dt{font-weight:600;white-space:nowrap}
+dl.glossary dd{margin:0;color:var(--muted)}
+@media (max-width:620px){dl.glossary{grid-template-columns:1fr}dl.glossary dd{margin-bottom:8px}}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>dbr-autotune</h1>
-  <p class="sub">Derive a Dynamsoft Barcode Reader 11.x template from a folder of
-     images. The result is plain DCV template JSON &mdash; load it from C++,
-     .NET, Java, Python or mobile.</p>
+  <p class="sub">Give it a folder of photos containing barcodes. It tries hundreds of
+     reader settings and writes out the one that reads the most barcodes fastest,
+     as a file you can load into the Dynamsoft Barcode Reader SDK from C++, .NET,
+     Java, Python or mobile.</p>
+
+  <details class="panel" style="margin-bottom:18px">
+    <summary>New here? What this tool is for, in plain words</summary>
+    <p style="margin:6px 0 10px">The barcode SDK has hundreds of settings. Its factory
+    defaults handle easy barcodes — clean black-on-white labels. They often fail
+    completely on hard ones: dot-peened marks on metal, laser etching on dark glass,
+    low contrast, curved surfaces, bad lighting.</p>
+    <p style="margin:0 0 10px">Finding the settings that <em>do</em> work is normally
+    manual trial and error. This tool does that search for you: it decodes your images
+    over and over with different settings, keeps whatever reads more barcodes, then
+    strips out everything that was not pulling its weight so the result is also fast.</p>
+    <p style="margin:0"><b>You need:</b> a folder of representative photos — ideally a
+    few dozen covering the real variation you see in production (different lighting,
+    angles, batches, dirt). <b>You get:</b> a settings file, plus a report telling you
+    honestly which images still could not be read.</p>
+  </details>
 
   <!-- ---------------- setup ---------------- -->
   <section id="setup">
-    <h2>1 &middot; Images</h2>
+    <h2>1 &middot; Pick your images</h2>
     <div class="panel">
       <div class="row">
-        <div class="field" style="flex:1">
-          <label for="imgpath">Folder or file</label>
-          <input type="text" id="imgpath" placeholder="C:\path\to\images" spellcheck="false">
+        <div class="field wide">
+          <label for="imgpath">Folder or files</label>
+          <input type="text" id="imgpath" placeholder="click Browse, or type a path"
+                 spellcheck="false">
         </div>
         <button class="ghost" id="browse">Browse…</button>
-        <button class="ghost" id="check">Check</button>
+        <button class="ghost" id="check" title="Count what would be processed">Check</button>
       </div>
-      <div id="picker" class="hidden" style="margin-top:12px">
-        <div class="crumb" id="crumb"></div>
-        <div class="dirlist" id="dirlist"></div>
+      <p class="hint" style="margin:8px 0 0">A whole folder is usually what you want.
+         Subfolders are included. JPEG, PNG, BMP, TIFF, GIF, WebP and PDF all work;
+         multi-page PDFs and TIFFs are scored one page at a time.</p>
+
+      <div id="picker" class="picker hidden">
+        <div class="top">
+          <div class="line" id="shortcuts"></div>
+          <div class="line"><span class="hint mono" id="crumb"></span></div>
+        </div>
+        <div class="cols">
+          <div class="col">
+            <div class="colhead">Folders <span id="foldercount"></span></div>
+            <div id="folders"></div>
+          </div>
+          <div class="col">
+            <div class="colhead">Images in this folder <span id="filecount"></span></div>
+            <div id="files"></div>
+          </div>
+        </div>
+        <div class="foot">
+          <button id="useFolder">Use this folder</button>
+          <button class="ghost hidden" id="useFiles">Use selected files</button>
+          <label class="chk"><input type="checkbox" id="showHidden"> show hidden folders</label>
+          <span class="hint" id="pickerMsg"></span>
+        </div>
       </div>
+
       <div id="previewOut" class="hint" style="margin-top:10px"></div>
     </div>
 
-    <h2>2 &middot; Options</h2>
+    <h2>2 &middot; Choose how hard to look</h2>
     <div class="panel">
       <div class="row">
         <div class="field">
           <label for="out">Output folder</label>
-          <input type="text" id="out" value="autotune_out">
+          <input type="text" id="out" value="autotune_out" style="min-width:190px">
+          <span class="why">Where the settings file and report get written.</span>
         </div>
         <div class="field">
           <label for="mode">Mode</label>
           <select id="mode">
             <option value="tune">Tune once</option>
-            <option value="crossval">K-fold cross-validate</option>
+            <option value="crossval">Cross-validate</option>
           </select>
+          <span class="why">“Tune once” gives you a settings file.
+            “Cross-validate” instead tells you how trustworthy the result is — see below.</span>
         </div>
-        <div class="field" id="kwrap" style="display:none">
-          <label for="k">Folds (K)</label>
+        <div class="field hidden" id="kwrap">
+          <label for="k">Folds</label>
           <input type="number" id="k" value="5" min="2" max="10">
+          <span class="why">Split the images into this many groups. Costs this many
+            full runs.</span>
         </div>
         <div class="field">
-          <label for="budget">Budget</label>
+          <label for="budget">Effort</label>
           <select id="budget">
-            <option value="quick">Quick (1 round)</option>
-            <option value="full" selected>Full (2 rounds)</option>
-            <option value="deep">Deep (4 rounds)</option>
+            <option value="quick">Quick</option>
+            <option value="full" selected>Full</option>
+            <option value="deep">Deep</option>
           </select>
+          <span class="why">How many settings combinations to try. Quick ≈ 60,
+            Full ≈ 115, Deep ≈ 210. More rarely helps much past Full.</span>
         </div>
         <div class="field">
           <label for="jobs">Workers</label>
           <input type="number" id="jobs" value="0" min="0" max="64">
+          <span class="why">Images decoded at once. 0 = half your CPU cores.
+            Higher is faster but the on-screen timings get noisier.</span>
         </div>
         <div class="field">
-          <label for="holdout">Holdout</label>
+          <label for="holdout">Set aside</label>
           <select id="holdout">
-            <option value="0">None</option>
-            <option value="0.25" selected>25%</option>
-            <option value="0.3">30%</option>
+            <option value="0">Nothing</option>
+            <option value="0.25" selected>25% of files</option>
+            <option value="0.3">30% of files</option>
           </select>
+          <span class="why">Keep some images out of the search, then test on them.
+            Catches settings that only work on the exact images you tuned with.</span>
         </div>
       </div>
-      <details style="margin-top:12px">
-        <summary>Priors &mdash; each one removes work and improves the result</summary>
+
+      <details style="margin-top:14px">
+        <summary>Tell it what you already know — each answer makes the run faster and better</summary>
         <div class="row" style="margin-top:10px">
           <div class="field">
-            <label for="formats">Symbologies (space separated)</label>
-            <input type="text" id="formats" placeholder="BF_DATAMATRIX BF_QR_CODE" spellcheck="false">
+            <label for="formats">Barcode types</label>
+            <input type="text" id="formats" placeholder="leave blank to auto-detect"
+                   spellcheck="false" style="min-width:230px">
+            <span class="why">e.g. <span class="mono">BF_DATAMATRIX BF_QR_CODE</span>.
+              If you know the type, say so — searching for types you do not have is
+              usually the single biggest waste of time.</span>
           </div>
           <div class="field">
-            <label for="expected">Codes per page</label>
+            <label for="expected">Barcodes per image</label>
             <input type="number" id="expected" placeholder="auto" min="0" max="999">
+            <span class="why">If every photo has exactly one, put 1 — the reader can
+              then stop as soon as it finds it.</span>
           </div>
-          <div class="field" style="flex:1">
-            <label for="gt">Ground-truth file (CSV/JSON)</label>
-            <input type="text" id="gt" placeholder="optional — enables false-positive detection" spellcheck="false">
+          <div class="field wide">
+            <label for="gt">Known correct answers (file)</label>
+            <input type="text" id="gt"
+                   placeholder="optional CSV or JSON — the single most useful thing you can provide"
+                   spellcheck="false">
+            <span class="why">A CSV of <span class="mono">filename,barcode text</span>.
+              Without it the tool has to guess which images contain a barcode, and it
+              cannot detect a <em>wrong</em> read at all.</span>
           </div>
           <div class="field">
             <label for="seed">Seed</label>
             <input type="number" id="seed" value="0" min="0">
+            <span class="why">Fixes which images get set aside, so a repeat run splits
+              them the same way.</span>
           </div>
           <div class="field">
-            <label for="timebudget">Time budget (s)</label>
+            <label for="timebudget">Stop after (seconds)</label>
             <input type="number" id="timebudget" value="0" min="0" step="60">
+            <span class="why">0 = no limit. It always keeps the best settings found so
+              far, so cutting it short is safe.</span>
           </div>
         </div>
       </details>
-      <div class="row" style="margin-top:14px">
+
+      <div class="row" style="margin-top:16px">
         <button id="start">Start</button>
         <button class="ghost hidden" id="cancel">Cancel</button>
-        <span class="hint" id="startHint"></span>
+        <span class="hint" id="startHint">Expect a few minutes. Large photos are slow —
+          12-megapixel images take about a second each, per setting tried.</span>
       </div>
     </div>
   </section>
@@ -170,7 +270,8 @@ details summary{cursor:pointer;color:var(--accent);font-size:13px}
         <b id="phase">starting…</b><span class="hint mono" id="counter"></span>
       </div>
       <div class="bar"><i id="barfill"></i></div>
-      <div class="hint" id="bestSoFar"></div>
+      <div class="hint" id="phaseWhy"></div>
+      <div class="hint" id="bestSoFar" style="margin-top:4px"></div>
     </div>
     <div class="split" style="margin-top:12px">
       <div>
@@ -178,11 +279,13 @@ details summary{cursor:pointer;color:var(--accent);font-size:13px}
         <pre class="log" id="log"></pre>
       </div>
       <div>
-        <h2>Configurations tried</h2>
+        <h2>Settings tried</h2>
         <div class="scroll"><table>
-          <thead><tr><th class="num">#</th><th>Phase</th><th>Configuration</th>
-            <th class="num">Recall</th><th class="num">ms</th></tr></thead>
+          <thead><tr><th class="num">#</th><th>Stage</th><th>Setting changed</th>
+            <th class="num">Read rate</th><th class="num">ms</th></tr></thead>
           <tbody id="trials"></tbody></table></div>
+        <p class="hint">Newest first. “Read rate” is against the barcodes found so far,
+           so it moves as the tool discovers more.</p>
       </div>
     </div>
   </section>
@@ -191,6 +294,69 @@ details summary{cursor:pointer;color:var(--accent);font-size:13px}
   <section id="result" class="hidden">
     <h2>Result</h2>
     <div id="resultBody"></div>
+  </section>
+
+  <!-- ---------------- glossary ---------------- -->
+  <section>
+    <h2>Words this page uses</h2>
+    <details class="panel">
+      <summary>Open the glossary</summary>
+      <dl class="glossary">
+        <dt>Barcode type</dt>
+        <dd>Which barcode “language” a mark is written in — QR Code, DataMatrix,
+            Code 39, and so on. The SDK calls these <span class="mono">BF_…</span>
+            names. Also called a <em>symbology</em>.</dd>
+
+        <dt>Template</dt>
+        <dd>The settings file this tool produces. You hand it to the SDK and it reads
+            barcodes your way instead of the factory default way.</dd>
+
+        <dt>Read rate<br>(recall)</dt>
+        <dd>Of the barcodes we believe are in your images, the share that got read.
+            <b>Careful:</b> when you have not supplied correct answers, “believe are
+            there” means “something managed to read at some point”, so images nothing
+            ever read drop out of this number and flatter it.</dd>
+
+        <dt>Page coverage</dt>
+        <dd>Of <em>every</em> image you supplied, the share that produced a read.
+            Nothing drops out of this one, so when the two disagree, this is the
+            honest number.</dd>
+
+        <dt>Undetermined</dt>
+        <dd>An image where nothing was ever read. It either has no barcode, or has one
+            nobody could crack — the tool genuinely cannot tell which, so it says so
+            instead of guessing. Look at these by eye.</dd>
+
+        <dt>Mean / p95</dt>
+        <dd>Average time per image, and the time that 95% of images come in under.
+            p95 is what matters for a production line: it is roughly your worst
+            realistic case, ignoring freak outliers.</dd>
+
+        <dt>DPM</dt>
+        <dd>Direct Part Marking — a code stamped, etched or dot-peened straight onto a
+            product rather than printed on a label. Much harder to read, and it needs
+            a specific mode switched on.</dd>
+
+        <dt>Correct answers<br>(ground truth)</dt>
+        <dd>A list you supply of what each image <em>should</em> decode to. With it,
+            scores are real; without it, the tool has to infer them and cannot spot a
+            misread.</dd>
+
+        <dt>Set aside<br>(holdout)</dt>
+        <dd>Images deliberately kept out of the search, used at the end as a fresh
+            test. If the score collapses on them, the settings were memorising your
+            sample rather than solving the problem.</dd>
+
+        <dt>Cross-validate</dt>
+        <dd>Repeat the whole process several times, each time setting aside a different
+            group. You get an average <em>and</em> a spread. A wide spread means the
+            answer depends on luck, and you need more images.</dd>
+
+        <dt>Timeout</dt>
+        <dd>A hard limit on how long the reader may spend on one image before giving
+            up. The tool sets this automatically to twice the slowest image it saw.</dd>
+      </dl>
+    </details>
   </section>
 
   <!-- ---------------- history ---------------- -->
@@ -221,65 +387,142 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) =>
 const pct = (v) => (v == null ? "—" : (v * 100).toFixed(1) + "%");
 const ms = (v) => (v == null ? "—" : Math.round(v).toLocaleString());
 
-let currentRun = null, source = null, trialCount = 0;
+let currentRun = null, source = null;
+let pickerPath = null, selectedFiles = new Set();
 
 /* ---------- folder picker ---------- */
 $("browse").onclick = () => {
   const box = $("picker");
   box.classList.toggle("hidden");
-  if (!box.classList.contains("hidden")) loadDir($("imgpath").value || null);
-};
-async function loadDir(path) {
-  let data;
-  try { data = await api("/api/browse?path=" + encodeURIComponent(path || "")); }
-  catch (e) { $("dirlist").innerHTML = `<div class="hint" style="padding:10px">${esc(e.message)}</div>`; return; }
-  if (data.error) { $("dirlist").innerHTML = `<div class="hint" style="padding:10px">${esc(data.error)}</div>`; return; }
-
-  const crumb = $("crumb");
-  crumb.innerHTML = "";
-  (data.drives || []).forEach((d) => {
-    const b = document.createElement("button");
-    b.className = "ghost"; b.textContent = d;
-    b.onclick = () => loadDir(d); crumb.appendChild(b);
-  });
-  if (data.parent) {
-    const up = document.createElement("button");
-    up.className = "ghost"; up.textContent = "↑ up";
-    up.onclick = () => loadDir(data.parent); crumb.appendChild(up);
+  if (!box.classList.contains("hidden")) {
+    const typed = $("imgpath").value.split(";")[0].trim();
+    loadDir(typed || null);
   }
-  const use = document.createElement("button");
-  use.textContent = `Use this folder (${data.images_here} image${data.images_here === 1 ? "" : "s"})`;
-  use.onclick = () => { $("imgpath").value = data.path; $("picker").classList.add("hidden"); checkPath(); };
-  crumb.appendChild(use);
-  const here = document.createElement("span");
-  here.className = "hint mono"; here.textContent = data.path;
-  crumb.appendChild(here);
+};
+$("showHidden").onchange = () => loadDir(pickerPath);
 
-  $("dirlist").innerHTML = "";
-  data.entries.filter((e) => e.dir).forEach((e) => {
-    const b = document.createElement("button");
-    b.textContent = "📁  " + e.name;
-    b.onclick = () => loadDir(data.path.replace(/[\\/]+$/, "") + (data.path.includes("\\") ? "\\" : "/") + e.name);
-    $("dirlist").appendChild(b);
+async function loadDir(path) {
+  $("pickerMsg").textContent = "loading…";
+  let d;
+  try {
+    d = await api("/api/browse?path=" + encodeURIComponent(path || "") +
+                  "&hidden=" + ($("showHidden").checked ? "1" : "0"));
+  } catch (e) { $("pickerMsg").innerHTML = `<span class="down">${esc(e.message)}</span>`; return; }
+
+  // Shortcuts and drives stay available even when a path fails to open.
+  $("shortcuts").innerHTML = "";
+  (d.shortcuts || []).forEach((s) => addTop(s.name, s.path));
+  (d.drives || []).forEach((drive) => addTop(drive, drive));
+  if (d.parent) addTop("↑ up", d.parent);
+
+  if (d.error) {
+    $("pickerMsg").innerHTML = `<span class="down">${esc(d.error)}</span>`;
+    $("folders").innerHTML = ""; $("files").innerHTML = "";
+    return;
+  }
+
+  pickerPath = d.path;
+  $("crumb").textContent = d.path;
+  $("pickerMsg").textContent = "";
+  $("foldercount").textContent = d.folders.length ? `(${d.folders.length})` : "";
+  $("filecount").textContent = d.images_here ? `(${d.images_here})` : "";
+
+  // --- folders, each with the number of images directly inside ---
+  $("folders").innerHTML = "";
+  d.folders.forEach((f) => {
+    const row = document.createElement("div");
+    row.className = "item";
+    row.innerHTML = `<span>📁</span><span class="grow">${esc(f.name)}</span>` +
+      (f.images ? `<span class="count">${f.images} image${f.images === 1 ? "" : "s"}</span>
+                   <span class="use">use</span>` : `<span class="count">—</span>`);
+    row.onclick = (ev) => {
+      if (ev.target.classList.contains("use")) { chooseFolder(f.path); return; }
+      loadDir(f.path);
+    };
+    $("folders").appendChild(row);
   });
-  if (!$("dirlist").children.length)
-    $("dirlist").innerHTML = '<div class="hint" style="padding:10px">no subfolders</div>';
+  if (!d.folders.length) {
+    $("folders").innerHTML = `<div class="hint" style="padding:10px">no subfolders${
+      d.hidden_folders ? ` (${d.hidden_folders} hidden)` : ""}</div>`;
+  } else if (d.hidden_folders && !$("showHidden").checked) {
+    const note = document.createElement("div");
+    note.className = "hint"; note.style.padding = "8px 10px";
+    note.textContent = `${d.hidden_folders} hidden folder(s) not shown`;
+    $("folders").appendChild(note);
+  }
+
+  // --- image files in this folder, individually selectable ---
+  selectedFiles.clear(); updateUseFiles();
+  $("files").innerHTML = "";
+  d.files.forEach((f) => {
+    const row = document.createElement("div");
+    row.className = "item";
+    row.innerHTML = `<span>🖼️</span><span class="grow">${esc(f.name)}</span>
+                     <span class="count">${f.kb.toLocaleString()} KB</span>`;
+    row.onclick = () => {
+      if (selectedFiles.has(f.path)) selectedFiles.delete(f.path);
+      else selectedFiles.add(f.path);
+      row.classList.toggle("on", selectedFiles.has(f.path));
+      updateUseFiles();
+    };
+    $("files").appendChild(row);
+  });
+  if (!d.files.length)
+    $("files").innerHTML = '<div class="hint" style="padding:10px">no images directly in this folder — open a subfolder</div>';
+
+  $("useFolder").textContent = d.images_here
+    ? `Use this folder (${d.images_here} image${d.images_here === 1 ? "" : "s"})`
+    : "Use this folder (including subfolders)";
 }
 
+function addTop(label, path) {
+  const b = document.createElement("button");
+  b.className = "ghost"; b.textContent = label;
+  b.onclick = () => loadDir(path);
+  $("shortcuts").appendChild(b);
+}
+function updateUseFiles() {
+  const n = selectedFiles.size;
+  $("useFiles").classList.toggle("hidden", n === 0);
+  $("useFiles").textContent = `Use ${n} selected file${n === 1 ? "" : "s"}`;
+}
+function chooseFolder(path) {
+  $("imgpath").value = path;
+  $("picker").classList.add("hidden");
+  checkPath();
+}
+$("useFolder").onclick = () => chooseFolder(pickerPath);
+$("useFiles").onclick = () => {
+  $("imgpath").value = [...selectedFiles].join(";");
+  $("picker").classList.add("hidden");
+  checkPath();
+};
+
+/* ---------- what will actually be processed ---------- */
+const paths = () => $("imgpath").value.split(";").map((s) => s.trim()).filter(Boolean);
 $("check").onclick = checkPath;
 $("imgpath").addEventListener("change", checkPath);
 async function checkPath() {
-  const path = $("imgpath").value.trim();
-  if (!path) { $("previewOut").textContent = ""; return; }
+  const list = paths();
+  if (!list.length) { $("previewOut").textContent = ""; return; }
   $("previewOut").textContent = "checking…";
   try {
-    const d = await api("/api/preview?images=" + encodeURIComponent(path));
+    const query = list.map((p) => "images=" + encodeURIComponent(p)).join("&");
+    const d = await api("/api/preview?" + query);
     if (d.error) { $("previewOut").innerHTML = `<span class="down">${esc(d.error)}</span>`; return; }
-    let text = `<b>${d.pages}</b> page(s) across <b>${d.files}</b> file(s)`;
-    if (d.skipped) text += ` · ${d.skipped} unsupported file(s) ignored`;
+    if (!d.pages) {
+      $("previewOut").innerHTML = `<span class="down">No readable images found here.
+        Check the path, or open a subfolder in Browse.</span>`;
+      return;
+    }
+    let text = `Will process <b>${d.pages}</b> page(s) from <b>${d.files}</b> file(s).`;
+    if (d.skipped) text += ` ${d.skipped} unsupported file(s) ignored.`;
+    if (d.pages < 10) text += ` <span class="warn">That is few — results from under
+      ~20 images are easily luck. Add more if you can.</span>`;
     if (d.uncounted?.length)
-      text += `<br><span class="warn">⚠ could not count pages in ${d.uncounted.length} file(s)
-               — install pypdf, otherwise they are scored as one page each.</span>`;
+      text += `<br><span class="warn">⚠ Could not count the pages inside
+        ${d.uncounted.length} file(s), so they will be scored as one page each.
+        Installing <span class="mono">pypdf</span> fixes this for PDFs.</span>`;
     if (d.sample_labels?.length)
       text += `<br><span class="mono">${esc(d.sample_labels.join(", "))}${d.pages > 12 ? " …" : ""}</span>`;
     $("previewOut").innerHTML = text;
@@ -287,21 +530,28 @@ async function checkPath() {
 }
 
 $("mode").onchange = () => {
-  $("kwrap").style.display = $("mode").value === "crossval" ? "" : "none";
-  $("startHint").textContent = $("mode").value === "crossval"
-    ? "cross-validation runs the whole pipeline K times — expect roughly K× the duration"
-    : "";
+  const cv = $("mode").value === "crossval";
+  $("kwrap").classList.toggle("hidden", !cv);
+  $("startHint").innerHTML = cv
+    ? `Cross-validation repeats the whole process once per fold, so budget roughly
+       <b>K times</b> the duration of a single run. It produces a trustworthiness
+       figure, not a settings file.`
+    : `Expect a few minutes. Large photos are slow — 12-megapixel images take about a
+       second each, per setting tried.`;
 };
 
 /* ---------- start / cancel ---------- */
 $("start").onclick = async () => {
-  const path = $("imgpath").value.trim();
-  if (!path) { $("previewOut").innerHTML = '<span class="down">pick a folder first</span>'; return; }
+  const list = paths();
+  if (!list.length) {
+    $("previewOut").innerHTML = '<span class="down">Pick a folder first — press Browse.</span>';
+    return;
+  }
   const rounds = {quick: 1, full: 2, deep: 4}[$("budget").value];
   const formats = $("formats").value.trim();
   const expected = $("expected").value.trim();
   const request = {
-    images: [path],
+    images: list,
     out: $("out").value.trim() || null,
     jobs: Number($("jobs").value) || 0,
     holdout: Number($("holdout").value) || 0,
@@ -313,11 +563,12 @@ $("start").onclick = async () => {
     expected_count: expected === "" ? null : Number(expected),
     ground_truth: $("gt").value.trim() || null,
   };
-  const body = {request, cross_validate: $("mode").value === "crossval", k: Number($("k").value) || 5};
+  const body = {request, cross_validate: $("mode").value === "crossval",
+                k: Number($("k").value) || 5};
 
   $("start").disabled = true;
   $("result").classList.add("hidden");
-  $("trials").innerHTML = ""; $("log").textContent = ""; trialCount = 0;
+  $("trials").innerHTML = ""; $("log").textContent = "";
   try {
     const run = await api("/api/start", {method: "POST", body: JSON.stringify(body)});
     currentRun = run.id;
@@ -339,6 +590,15 @@ $("cancel").onclick = async () => {
 };
 
 /* ---------- live events ---------- */
+const PHASE_WHY = {
+  probe: "Trying a handful of very different starting settings, to find out what kind of barcodes are in these images and how hard they are.",
+  narrow: "Restricting the reader to the barcode types actually present — usually the single biggest speed win.",
+  ascend: "Changing one setting at a time and keeping whatever reads more barcodes.",
+  trim: "Peak read rate reached. Now switching work back off one piece at a time, keeping every removal the read rate survives.",
+  measure: "Re-timing the chosen settings one image at a time, so the reported speed matches a real single-image call.",
+  holdout: "Testing on the images that were deliberately kept out of the search.",
+};
+
 function listen(id) {
   if (source) source.close();
   source = new EventSource(`/api/events/${id}?token=${encodeURIComponent(TOKEN)}`);
@@ -349,18 +609,22 @@ function listen(id) {
   source.onerror = () => { /* the stream ends when the run finishes */ };
 }
 
+function setPhase(name) {
+  $("phase").textContent = name;
+  $("phaseWhy").textContent = PHASE_WHY[name] || "";
+}
+
 function handle(ev) {
   switch (ev.event) {
     case "start":
-      $("phase").textContent = `probing ${ev.tuning_pages} page(s)`;
+      setPhase("probe");
       $("counter").textContent = `0 / ~${ev.estimated_trials}`;
       break;
     case "trial": {
-      trialCount = ev.index;
       const frac = ev.total ? Math.min(1, ev.index / ev.total) : 0;
       $("barfill").style.width = (frac * 100).toFixed(1) + "%";
-      $("counter").textContent = `${ev.index} / ~${ev.total}`;
-      $("phase").textContent = ev.phase;
+      $("counter").textContent = `${ev.index} / ~${ev.total} settings tried`;
+      setPhase(ev.phase);
       const tr = document.createElement("tr");
       tr.innerHTML = `<td class="num">${ev.index}</td><td>${esc(ev.phase)}</td>
         <td class="mono">${esc(ev.name)}</td>
@@ -368,18 +632,17 @@ function handle(ev) {
       $("trials").prepend(tr);
       break;
     }
-    case "phase":
-      $("phase").textContent = ev.phase === "measure"
-        ? "re-measuring single-threaded" : ev.phase;
-      break;
+    case "phase": setPhase(ev.phase); break;
     case "fold_start":
-      $("phase").textContent = `fold ${ev.fold}/${ev.k} — tuning on ${ev.tuned_on} pages`;
+      setPhase("ascend");
+      $("phase").textContent = `fold ${ev.fold} of ${ev.k}`;
+      $("phaseWhy").textContent =
+        `Tuning on ${ev.tuned_on} pages, then testing on the ${ev.validated_on} kept back.`;
       $("barfill").style.width = (((ev.fold - 1) / ev.k) * 100).toFixed(1) + "%";
       break;
     case "fold_done":
       $("bestSoFar").innerHTML =
-        `fold ${ev.fold}/${ev.k} validated: coverage <b>${pct(ev.validation_page_coverage)}</b>,
-         recall ${pct(ev.validation_recall)}`;
+        `fold ${ev.fold}/${ev.k} tested: coverage <b>${pct(ev.validation_page_coverage)}</b>`;
       break;
     case "log": {
       const el = $("log");
@@ -391,6 +654,7 @@ function handle(ev) {
     case "finished":
       $("barfill").style.width = "100%";
       $("phase").textContent = ev.status;
+      $("phaseWhy").textContent = "";
       $("start").disabled = false;
       $("cancel").classList.add("hidden");
       $("cancel").disabled = false;
@@ -412,49 +676,65 @@ function render(ev) {
   }
   const s = ev.summary || {};
   box.innerHTML = s.schema === "dbr-autotune-cv/1" ? renderCv(s) : renderTune(s);
+  box.scrollIntoView({behavior: "smooth", block: "start"});
 }
+
+const kpi = (label, value, detail, why) =>
+  `<div class="panel kpi"><div class="l">${esc(label)}</div><div class="n">${value}</div>
+   <div class="d">${detail || ""}</div>${why ? `<div class="why">${why}</div>` : ""}</div>`;
 
 function renderTune(s) {
   const sel = s.selected || {}, base = s.baseline, hold = s.holdout;
   const delta = base ? (sel.recall - base.recall) * 100 : null;
   const speed = base && sel.mean_ms ? base.mean_ms / sel.mean_ms : null;
+
   let html = `<div class="grid">
-    ${kpi("Recall", pct(sel.recall), base
-        ? `<span class="${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : ""}${delta.toFixed(1)} pts vs SDK default</span>`
-        : `${sel.recall != null ? "" : "—"}`)}
-    ${kpi("Page coverage", pct(sel.page_coverage), "over every page in the set")}
+    ${kpi("Read rate", pct(sel.recall), base
+        ? `<span class="${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : ""}${delta.toFixed(1)} points vs. factory defaults</span>` : "",
+        "Share of the barcodes we believe are present that got read.")}
+    ${kpi("Page coverage", pct(sel.page_coverage),
+        "counted over every image you supplied",
+        "The honest headline: nothing drops out of this denominator.")}
     ${kpi("Mean decode", ms(sel.mean_ms) + " ms", speed
-        ? `<span class="${speed >= 1 ? "up" : "down"}">${speed.toFixed(2)}× ${speed >= 1 ? "faster" : "slower"}</span>` : "")}
-    ${kpi("p95 decode", ms(sel.p95_ms) + " ms", hold ? `holdout ${pct(hold.page_coverage)} coverage` : "")}
+        ? `<span class="${speed >= 1 ? "up" : "down"}">${speed.toFixed(2)}× ${speed >= 1 ? "faster" : "slower"} than defaults</span>` : "",
+        "Average time for one image, timed one at a time.")}
+    ${kpi("p95 decode", ms(sel.p95_ms) + " ms",
+        hold ? `held-back images: ${pct(hold.page_coverage)} coverage` : "",
+        "95% of images finish faster than this — your realistic worst case.")}
   </div>`;
 
   if (s.undetermined_pages?.length) {
-    html += `<div class="banner"><b>${s.undetermined_pages.length} page(s) were never decoded
-      by any configuration.</b> The inferred truth set records them as carrying no barcode, so
-      the recall above excludes them — its denominator only counts codes something managed to
-      read. <b>If they do carry a barcode, real recall is at most ${pct(sel.recall_floor)}.</b>
-      Check them by eye, then supply a ground-truth file.
+    html += `<div class="banner"><b>${s.undetermined_pages.length} image(s) were never read
+      by any settings we tried.</b> The tool cannot tell whether those images contain no
+      barcode, or contain one nothing could crack — so it does not count them either way,
+      which means the read rate above leaves them out.
+      <b>If they do contain barcodes, the true read rate is at most ${pct(sel.recall_floor)}.</b>
+      Open them and look. If they have barcodes, page coverage is your real score, and the
+      fix is usually better lighting or focus rather than more tuning.
       <div class="mono" style="margin-top:6px">${esc(s.undetermined_pages.join(", "))}</div></div>`;
   }
   if (s.withheld?.length) {
-    html += `<div class="banner">${s.withheld.length} read(s) in weak-checksum symbologies were
-      withheld from the truth set as probably spurious:
+    html += `<div class="banner">${s.withheld.length} suspicious read(s) were ignored.
+      These were in barcode types with weak error checking, where surface texture can be
+      misread as a real code, and nothing corroborated them:
       <div class="mono" style="margin-top:6px">${esc(s.withheld.slice(0, 8)
         .map((w) => `${w.format} "${w.text}"`).join(", "))}</div></div>`;
   }
 
-  html += `<h2>Templates written</h2><div class="scroll"><table>
-    <thead><tr><th>File</th><th class="num">Recall</th><th class="num">Coverage</th>
-      <th class="num">Mean ms</th><th>Tuned parameters</th></tr></thead><tbody>`;
+  html += `<h2>Settings files written</h2><div class="scroll"><table>
+    <thead><tr><th>File</th><th class="num">Read rate</th><th class="num">Coverage</th>
+      <th class="num">Mean ms</th><th>What it changed from the defaults</th></tr></thead><tbody>`;
   for (const [key, v] of Object.entries(s.variants || {})) {
     const tags = Object.entries(v.knobs || {})
       .map(([k, val]) => `<span class="tag">${esc(k)}=${esc(JSON.stringify(val))}</span>`).join(" ");
     html += `<tr><td class="mono">${esc(v.file || key)}</td><td class="num">${pct(v.recall)}</td>
       <td class="num">${pct(v.page_coverage)}</td><td class="num">${ms(v.mean_ms)}</td>
-      <td>${tags || '<span class="tag">SDK defaults</span>'}</td></tr>`;
+      <td>${tags || '<span class="tag">nothing — defaults were best</span>'}</td></tr>`;
   }
-  html += `</tbody></table></div>`;
-  html += `<p class="hint">Written to <span class="mono">${esc(s.request?.out || "")}</span>.
+  html += `</tbody></table></div>
+    <p class="hint">Load one of these with <span class="mono">InitSettingsFromFile</span>
+    and pick the template by name. Written to
+    <span class="mono">${esc(s.request?.out || "")}</span>.
     <a href="/api/report/${currentRun}?token=${encodeURIComponent(TOKEN)}" target="_blank">Open the full report →</a></p>`;
   return html;
 }
@@ -465,25 +745,30 @@ function renderCv(s) {
     .filter(([, counts]) => Object.keys(counts).length > 1).map(([k]) => k);
   let html = `<div class="grid">
     ${kpi("Page coverage", pct(v.page_coverage_mean),
-          `± ${pct(v.page_coverage_stdev)} across ${s.k} folds`)}
-    ${kpi("Worst fold", pct(v.page_coverage_min), `best ${pct(v.page_coverage_max)}`)}
-    ${kpi("Recall", pct(v.recall_mean), `± ${pct(v.recall_stdev)}`)}
-    ${kpi("Mean decode", ms(v.mean_ms) + " ms", `${s.pages} pages, seed ${s.seed}`)}
+          `± ${pct(v.page_coverage_stdev)} across ${s.k} folds`,
+          "Averaged over folds, each tested on images it never saw.")}
+    ${kpi("Worst fold", pct(v.page_coverage_min), `best fold ${pct(v.page_coverage_max)}`,
+          "The gap between these two is how much your result depends on luck.")}
+    ${kpi("Read rate", pct(v.recall_mean), `± ${pct(v.recall_stdev)}`,
+          "Usually near 100% here and not very informative — prefer page coverage.")}
+    ${kpi("Mean decode", ms(v.mean_ms) + " ms", `${s.pages} images, seed ${s.seed}`,
+          "Average time per image across all folds.")}
   </div>`;
   if (unstable.length) {
-    html += `<div class="banner"><b>${unstable.length} parameter(s) were chosen differently by
-      different folds:</b> <span class="mono">${esc(unstable.join(", "))}</span>.
-      Those were fitted to whichever images that fold happened to see, not to the problem.
-      More images would settle them.</div>`;
+    html += `<div class="banner"><b>${unstable.length} setting(s) came out differently
+      depending on which images were used:</b>
+      <span class="mono">${esc(unstable.join(", "))}</span>.
+      Those were fitted to whichever images that fold happened to see rather than to your
+      problem, so do not read anything into their exact values. More images would settle
+      them.</div>`;
   } else {
-    html += `<div class="banner" style="border-color:var(--good);
-      background:color-mix(in srgb,var(--good) 10%,var(--panel))">
-      Every fold settled on the same parameters — the configuration is a property of the
-      images, not of one particular split.</div>`;
+    html += `<div class="banner ok">Every fold arrived at the same settings — that is a
+      good sign: the configuration reflects your images in general, not one particular
+      split of them.</div>`;
   }
   html += `<h2>Folds</h2><div class="scroll"><table>
-    <thead><tr><th class="num">Fold</th><th class="num">Tuned on</th><th class="num">Validated on</th>
-      <th class="num">Train coverage</th><th class="num">Validation coverage</th>
+    <thead><tr><th class="num">Fold</th><th class="num">Tuned on</th><th class="num">Tested on</th>
+      <th class="num">Coverage while tuning</th><th class="num">Coverage on unseen</th>
       <th class="num">Mean ms</th></tr></thead><tbody>`;
   for (const f of s.folds || []) {
     html += `<tr><td class="num">${f.fold}</td><td class="num">${f.tuned_on}</td>
@@ -491,17 +776,17 @@ function renderCv(s) {
       <td class="num">${pct(f.validation_page_coverage)}</td>
       <td class="num">${ms(f.validation_mean_ms)}</td></tr>`;
   }
-  html += `</tbody></table></div>`;
+  html += `</tbody></table></div>
+    <p class="hint">A big drop between the last two columns means the settings were
+    memorising the images they were tuned on.</p>`;
   const consensus = Object.entries(s.consensus_knobs || {})
     .map(([k, val]) => `<span class="tag">${esc(k)}=${esc(JSON.stringify(val))}</span>`).join(" ");
-  if (consensus) html += `<h2>Parameters a majority of folds agreed on</h2>
-    <div class="panel">${consensus}</div>`;
+  if (consensus) html += `<h2>Settings most folds agreed on</h2>
+    <div class="panel">${consensus}
+    <p class="hint" style="margin:8px 0 0">These are the ones worth trusting. Run
+    “Tune once” to get an actual settings file.</p></div>`;
   return html;
 }
-
-const kpi = (label, value, detail) =>
-  `<div class="panel kpi"><div class="l">${esc(label)}</div><div class="n">${value}</div>
-   <div class="d">${detail || ""}</div></div>`;
 
 /* ---------- history ---------- */
 async function refreshRuns() {
@@ -512,7 +797,7 @@ async function refreshRuns() {
     else {
       body.innerHTML = d.runs.map((r) => `<tr>
         <td>${new Date(r.started * 1000).toLocaleTimeString()}</td>
-        <td>${esc(r.kind)}</td>
+        <td>${r.kind === "crossval" ? "cross-validate" : "tune"}</td>
         <td class="mono"><span title="${esc(r.images.join(", "))}">${esc(r.images.join(", ").slice(0, 46))}</span></td>
         <td class="${r.status === "done" ? "up" : r.status === "failed" ? "down" : "flat"}">${esc(r.status)}</td>
         <td class="num">${r.elapsed_s}s</td>
@@ -522,7 +807,7 @@ async function refreshRuns() {
     }
     const e = d.environment || {};
     $("envline").textContent =
-      `autotune ${e.autotune} · DBR bundle ${e.dbr_bundle} · Python ${e.python} · ${e.platform} · ${e.cpu_count} cores`;
+      `dbr-autotune ${e.autotune} · SDK ${e.dbr_bundle} · Python ${e.python} · ${e.platform} · ${e.cpu_count} cores`;
   } catch (e) { /* server going away is not worth a popup */ }
 }
 
