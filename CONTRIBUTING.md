@@ -3,8 +3,8 @@
 ## Getting set up
 
 ```bash
-git clone https://github.com/OWNER/dbr-autotune
-cd dbr-autotune
+git clone https://github.com/ztyyLV/DBR_Auto_Tuner
+cd DBR_Auto_Tuner
 pip install -e ".[dev,pdf]"
 ```
 
