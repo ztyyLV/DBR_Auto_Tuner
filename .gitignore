@@ -1,10 +1,32 @@
+# Byte-compiled / packaging
 __pycache__/
-*.pyc
+*.py[cod]
 *.egg-info/
 build/
 dist/
+.venv/
+venv/
+
+# Scratch space
 .tmp/
+
+# Tuning artefacts.
+#
+# Keep these out of version control on purpose: results.json and report.html
+# contain the decoded contents of your barcodes and the absolute paths of the
+# images you tuned on. On a customer dataset that is their product, batch and
+# serial numbers. Share a run by attaching the file deliberately, never by
+# committing it.
 out/
 autotune_out/
+*_out/
+cross-validation.json
+
+# C++ sample build output
 cpp_consumer/build/
-.venv/
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

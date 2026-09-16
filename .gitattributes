@@ -1,0 +1,14 @@
+# Normalise line endings so Windows and Unix contributors do not produce
+# whole-file diffs. Text is stored as LF in the repository and checked out
+# with the platform's native endings.
+* text=auto
+
+# Always LF, regardless of platform: these are read by tools that care.
+*.py    text eol=lf
+*.json  text eol=lf
+*.toml  text eol=lf
+*.md    text eol=lf
+*.html  text eol=lf
+*.cpp   text eol=lf
+*.h     text eol=lf
+*.txt   text eol=lf
