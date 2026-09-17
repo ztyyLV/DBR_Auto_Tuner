@@ -372,6 +372,58 @@ pages. Totals and means are exact.
 
 ---
 
+## When the SDK is upgraded
+
+The tool keeps working. The template may not stay optimal.
+
+Those are different things, and the difference matters. Measured across a real
+upgrade, 11.2.1000 to 11.6.3000, on the same 16 images:
+
+| template | tuned on | on 11.2 | on 11.6 |
+|---|---|---|---|
+| A | 11.2 | **14/16** | 13/16 |
+| B | 11.6 | 13/16 | **14/16** |
+| A, re-tuned on 11.6 | 11.6 | — | **14/16** |
+
+Each template is best on the version it was tuned on and loses an image on the
+other. Nothing broke — every template still loaded and ran — but a template
+carried across an upgrade is no longer the best one available.
+
+So there are two separate checks, and they answer different questions.
+
+**Does the tuner still work?** `selfcheck` compiles every level of the search
+space and hands each to the SDK. If a parameter was renamed or dropped it fails
+loudly rather than the search quietly skipping that part of the space. Across
+this upgrade all 108 levels were still accepted.
+
+```bash
+dbr-autotune selfcheck
+```
+
+**Is my template still good?** `evaluate` scores a stored template against
+images. With thresholds it exits non-zero, so it belongs in CI next to the
+upgrade.
+
+```bash
+dbr-autotune evaluate my-template.json ./regression-images --min-coverage 0.85
+```
+
+If it has slipped, re-run the tuner — that is the whole fix, and it restored
+the lost image here.
+
+`results.json` records which SDK produced it, so `replay` says plainly what
+changed:
+
+```
+! environment differs: the SDK version differs, so read rates may differ too
+    sdk_version  recorded '11.2.1000'  now '11.6.3000'
+```
+
+**Tune on the version you deploy on.** The Python bundle and the C++ SDK are
+versioned and shipped separately, and it is easy to end up tuning against one
+while production runs the other. That mismatch is exactly what costs the image
+in the table above.
+
 ## Surviving an SDK crash
 
 Decoding runs in **child processes, never in the parent** — not even for a
