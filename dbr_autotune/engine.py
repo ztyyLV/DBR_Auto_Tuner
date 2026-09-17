@@ -353,6 +353,7 @@ class Engine:
             return self._failed(tasks, "configuration crashed a worker earlier")
 
         attempts = [workers] if workers == 1 else [workers, 1]
+        last: Any = None
         for index, count in enumerate(attempts):
             pool = self._pool_for(count)
             try:
@@ -362,17 +363,18 @@ class Engine:
                 return list(pool.map(_worker_decode, tasks))
             except TemplateRejected:
                 raise
-            except BrokenProcessPool:
+            except BrokenProcessPool as exc:
                 self.crashes += 1
+                last = exc
                 self._shutdown()
                 if index + 1 < len(attempts):
                     self.log("    ! a decode worker crashed; re-running this "
                              "configuration on a single worker")
                     continue
         self._poisoned.add(load_key)
-        self.log("    ! it crashed on a single worker too; recording this "
-                 "configuration as failed and moving on")
-        return self._failed(tasks, "decode worker crashed")
+        self.log(f"    ! it crashed on a single worker too ({last}); recording "
+                 f"this configuration as failed and moving on")
+        return self._failed(tasks, f"decode worker crashed: {last}")
 
     @staticmethod
     def _failed(tasks: List[tuple], reason: str) -> List[List[PageResult]]:

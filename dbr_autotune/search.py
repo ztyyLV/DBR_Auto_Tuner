@@ -248,6 +248,34 @@ class Tuner:
                 break
         return best
 
+    def combine(self, start: Trial) -> Trial:
+        """Joint moves, for the settings that only pay off in company.
+
+        Ascent changes one knob at a time, so a pairing whose first half looks
+        like a loss is unreachable no matter how many rounds it runs. Smoothing
+        plus an aggressive threshold is the standard example: smoothing alone
+        blurs the mark, a high threshold alone eats it, together they lift a
+        low-contrast etched code off its background. These are applied whole.
+        """
+        best = start
+        for name, move in space.COMBINATION_MOVES:
+            knobs = T.with_knobs(best.knobs, **move)
+            if T.fingerprint(knobs) == T.fingerprint(best.knobs):
+                continue
+            try:
+                trial = self.trial(knobs, f"combine:{name}", phase="combine")
+            except BudgetExhausted:
+                break
+            except TemplateRejected:
+                continue
+            if self.objective.better(trial.score, best.score):
+                trial.accepted = True
+                trial.note = f"joint move: {name}"
+                self.log(f"      + {name}: recall {best.score.recall:.1%} -> "
+                         f"{trial.score.recall:.1%}")
+                best = trial
+        return best
+
     # -- phase 5: trim and fit --------------------------------------------
 
     def trim(self, start: Trial) -> Trial:
@@ -371,6 +399,11 @@ class Tuner:
             baseline = next((t for t in self.trials if t.name == "seed:default"), best)
             best = self.narrow(best)
             best = self.ascend(best, profile)
+            moved = self.combine(best)
+            if moved is not best:
+                # A joint move lands somewhere ascent has never explored, so
+                # give it one more sweep from the new position.
+                best = self.ascend(moved, profile)
             if not self.options.skip_trim:
                 best = self.trim(best)
                 best = self.fit_timeout(best)

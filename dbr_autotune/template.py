@@ -38,14 +38,23 @@ DEFAULTS: Dict[str, Any] = {
     # --- image pipeline ---------------------------------------------------
     "colour_conversion": None,      # {"r":-1,"g":-1,"b":-1}
     "grayscale_transform": ["GTM_ORIGINAL"],
-    "grayscale_enhance": None,      # list of GEM_* names
-    "binarization": None,           # {"block":31,"compensation":10,"fill":1}
+    # Either a list of GEM_* names, or dicts carrying that mode's own window
+    # size: [{"mode": "GEM_GRAY_SMOOTH", "smooth": 5}, "GEM_GENERAL"].
+    "grayscale_enhance": None,
+    # {"block":31,"compensation":10,"fill":1,"surfaces":"both"|"image"}.
+    # "surfaces" chooses whether the setting is applied to the texture-removed
+    # binary surface as well as the plain one; they are genuinely different
+    # pipelines and the best value for one is not always right for the other.
+    "binarization": None,
     "scale_image": None,            # {"type":"ST_SCALE_DOWN","edge":2000}
     "texture_detection": None,      # {"sensitivity":5}
     "text_detect": False,
     # --- per-format specification ----------------------------------------
     "mirror_mode": None,            # "MM_NORMAL" | "MM_BOTH"
     "module_size_range": None,      # {"min":1,"max":1000}
+    # Blank margin the reader insists on around a symbol, in modules. Marks
+    # crowded by curvature, glare or a moulding seam can fail on the default.
+    "min_quiet_zone": None,
 }
 
 _ROI = "roi_autotuned"
@@ -76,6 +85,22 @@ def with_knobs(knobs: Dict[str, Any], **changes: Any) -> Dict[str, Any]:
 
 def _modes(names) -> list:
     return [{"Mode": name} for name in names]
+
+
+def _enhancement_modes(entries) -> list:
+    """Grayscale enhancement, where a mode may carry its own window size."""
+    out = []
+    for entry in entries:
+        if isinstance(entry, str):
+            out.append({"Mode": entry})
+            continue
+        mode = {"Mode": entry["mode"]}
+        if "smooth" in entry:
+            mode["SmoothBlockSizeX"] = mode["SmoothBlockSizeY"] = entry["smooth"]
+        if "sharpen" in entry:
+            mode["SharpenBlockSizeX"] = mode["SharpenBlockSizeY"] = entry["sharpen"]
+        out.append(mode)
+    return out
 
 
 def _image_parameter(k: Dict[str, Any]) -> Dict[str, Any]:
@@ -129,7 +154,7 @@ def _image_parameter(k: Dict[str, Any]) -> Dict[str, Any]:
     if k["grayscale_enhance"]:
         stages.append({
             "Stage": "SST_ENHANCE_GRAYSCALE",
-            "GrayscaleEnhancementModes": _modes(k["grayscale_enhance"]),
+            "GrayscaleEnhancementModes": _enhancement_modes(k["grayscale_enhance"]),
         })
 
     if k["binarization"]:
@@ -141,11 +166,13 @@ def _image_parameter(k: Dict[str, Any]) -> Dict[str, Any]:
             "EnableFillBinaryVacancy": b.get("fill", 1),
             "ThresholdCompensation": b.get("compensation", 10),
         }
-        # Apply the same binarization to both binary surfaces, otherwise the
-        # texture-removed path silently keeps the SDK defaults.
         stages.append({"Stage": "SST_BINARIZE_IMAGE", "BinarizationModes": [mode]})
-        stages.append({"Stage": "SST_BINARIZE_TEXTURE_REMOVED_GRAYSCALE",
-                       "BinarizationModes": [copy.deepcopy(mode)]})
+        # The texture-removed surface is a separate pipeline. Setting it too is
+        # usually right - otherwise it quietly keeps the SDK defaults while the
+        # plain surface is tuned - but not always, so it is a knob, not a rule.
+        if b.get("surfaces", "both") == "both":
+            stages.append({"Stage": "SST_BINARIZE_TEXTURE_REMOVED_GRAYSCALE",
+                           "BinarizationModes": [copy.deepcopy(mode)]})
 
     return {"Name": _IP, "ApplicableStages": stages}
 
@@ -209,6 +236,9 @@ def _format_spec(k: Dict[str, Any]) -> Dict[str, Any] | None:
     if k["module_size_range"]:
         r = k["module_size_range"]
         spec["ModuleSizeRangeArray"] = [{"MinValue": r["min"], "MaxValue": r["max"]}]
+        touched = True
+    if k["min_quiet_zone"] is not None:
+        spec["MinQuietZoneWidth"] = k["min_quiet_zone"]
         touched = True
     return spec if touched else None
 

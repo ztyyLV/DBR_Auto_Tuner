@@ -65,6 +65,23 @@ def seed_configs(formats: List[str]) -> List[Tuple[str, Dict[str, Any]]]:
                              "DM_DEEP_ANALYSIS"],
             "timeout_ms": 30000,
         }),
+        # Smoothing before an aggressive local threshold is the recipe for
+        # low-contrast etched and dot-peened marks: smoothing merges the dots
+        # into strokes, and the high compensation then pulls them out of a
+        # background of nearly the same brightness. Neither half helps alone,
+        # which is why one-knob-at-a-time ascent never finds it unaided.
+        ("seed:smoothed-dpm", {
+            "formats": formats, "expected_count": 0,
+            "dpm_modes": ["DPMCRM_GENERAL"],
+            "localization_modes": ["LM_STATISTICS_MARKS", "LM_CONNECTED_BLOCKS"],
+            "grayscale_transform": ["GTM_ORIGINAL", "GTM_INVERTED"],
+            "grayscale_enhance": [{"mode": "GEM_GRAY_SMOOTH", "smooth": 5},
+                                  "GEM_GENERAL"],
+            "binarization": {"block": 39, "fill": 0, "compensation": 50,
+                             "surfaces": "image"},
+            "resist_deformation": False,
+            "timeout_ms": 30000,
+        }),
         ("seed:deep", {
             "formats": formats, "expected_count": 0,
             "dpm_modes": ["DPMCRM_GENERAL"],
@@ -120,6 +137,9 @@ def ladders(profile: Dict[str, Any]) -> List[Tuple[str, List[Any]]]:
             ["LM_CENTRE", "LM_CONNECTED_BLOCKS"],
             ALL_LOCALIZATION,
         ]),
+        # ThresholdCompensation spans a wide range in practice: a
+        # hand-tuned template for laser marks on dark glass used +50, far
+        # outside anything a cautious ladder would have offered.
         ("binarization", [
             None,
             {"block": 0, "fill": 1, "compensation": 10},
@@ -130,6 +150,11 @@ def ladders(profile: Dict[str, Any]) -> List[Tuple[str, List[Any]]]:
             {"block": 55, "fill": 0, "compensation": 10},
             {"block": 31, "fill": 1, "compensation": 20},
             {"block": 39, "fill": 0, "compensation": -10},
+            {"block": 39, "fill": 0, "compensation": 30},
+            {"block": 39, "fill": 0, "compensation": 50},
+            {"block": 31, "fill": 0, "compensation": 50},
+            {"block": 39, "fill": 0, "compensation": 50, "surfaces": "image"},
+            {"block": 39, "fill": 0, "compensation": -10, "surfaces": "image"},
         ]),
         ("deblur_modes", [
             None,
@@ -141,6 +166,8 @@ def ladders(profile: Dict[str, Any]) -> List[Tuple[str, List[Any]]]:
             ["DM_SHARPENING_SMOOTHING", "DM_MORPHING", "DM_DEEP_ANALYSIS"],
             ALL_DEBLUR,
         ]),
+        # Smoothing before binarization is what rescues dot-peened and
+        # laser-etched marks, and its window size matters as much as the mode.
         ("grayscale_enhance", [
             None,
             ["GEM_GENERAL"],
@@ -148,6 +175,10 @@ def ladders(profile: Dict[str, Any]) -> List[Tuple[str, List[Any]]]:
             ["GEM_SHARPEN_SMOOTH"],
             ["GEM_GRAY_EQUALIZE"],
             ["GEM_GRAY_SMOOTH", "GEM_SHARPEN_SMOOTH"],
+            [{"mode": "GEM_GRAY_SMOOTH", "smooth": 3}, "GEM_GENERAL"],
+            [{"mode": "GEM_GRAY_SMOOTH", "smooth": 5}, "GEM_GENERAL"],
+            [{"mode": "GEM_GRAY_SMOOTH", "smooth": 9}, "GEM_GENERAL"],
+            [{"mode": "GEM_SHARPEN_SMOOTH", "sharpen": 3, "smooth": 3}],
         ]),
         ("scale_image", scale_levels),
         ("barcode_scale", [
@@ -165,10 +196,45 @@ def ladders(profile: Dict[str, Any]) -> List[Tuple[str, List[Any]]]:
             {"r": 0, "g": 50, "b": 50},
         ]),
         ("mirror_mode", [None, "MM_BOTH"]),
+        ("min_quiet_zone", [None, 2, 4, 8]),
         ("texture_detection", [None, {"sensitivity": 5}, {"sensitivity": 9}]),
         ("region_predetect", [True, False]),
         ("text_detect", [False, True]),
     ]
+
+
+# Whole configurations to try once single-knob ascent has converged.
+#
+# Coordinate ascent moves one knob at a time, so it cannot cross a valley: a
+# setting that only pays off in company with another is unreachable, because the
+# first step of the pair looks like a loss. These are the pairings that are
+# known to work together in practice, applied as one move.
+COMBINATION_MOVES: List[Tuple[str, Dict[str, Any]]] = [
+    ("smooth5+threshold50", {
+        "grayscale_enhance": [{"mode": "GEM_GRAY_SMOOTH", "smooth": 5}, "GEM_GENERAL"],
+        "binarization": {"block": 39, "fill": 0, "compensation": 50,
+                         "surfaces": "image"},
+    }),
+    ("smooth3+threshold30", {
+        "grayscale_enhance": [{"mode": "GEM_GRAY_SMOOTH", "smooth": 3}, "GEM_GENERAL"],
+        "binarization": {"block": 31, "fill": 0, "compensation": 30,
+                         "surfaces": "image"},
+    }),
+    ("smooth9+threshold50", {
+        "grayscale_enhance": [{"mode": "GEM_GRAY_SMOOTH", "smooth": 9}, "GEM_GENERAL"],
+        "binarization": {"block": 55, "fill": 0, "compensation": 50,
+                         "surfaces": "image"},
+    }),
+    ("sharpen+equalise", {
+        "grayscale_enhance": ["GEM_GRAY_EQUALIZE",
+                              {"mode": "GEM_SHARPEN_SMOOTH", "sharpen": 3, "smooth": 3}],
+        "binarization": {"block": 31, "fill": 0, "compensation": 20},
+    }),
+    ("tight quiet zone + smoothing", {
+        "min_quiet_zone": 2,
+        "grayscale_enhance": [{"mode": "GEM_GRAY_SMOOTH", "smooth": 5}, "GEM_GENERAL"],
+    }),
+]
 
 
 # Knobs the speed-trim phase tries to switch off, cheapest win first.
@@ -181,6 +247,7 @@ TRIM_ORDER: List[Tuple[str, Any]] = [
     ("scale_barcode_image", False),
     ("grayscale_enhance", None),
     ("mirror_mode", None),
+    ("min_quiet_zone", None),
     ("binarization", None),
     ("region_predetect", False),
     ("dpm_modes", None),
