@@ -389,8 +389,18 @@ def _safe(obj, method: str, default):
 
 
 def image_stats(dataset: Dataset, sample_limit: int = 12) -> Dict[str, Any]:
-    """Cheap profile of the dataset: resolution, colour, file size."""
-    from PIL import Image
+    """Cheap profile of the dataset: resolution, colour, file size.
+
+    Pillow is optional. Without it there is no profile, which costs only the
+    resolution-derived scaling thresholds and the runtime estimate - the search
+    itself does not need it. That keeps the tuner installable anywhere the SDK
+    runs, including a minimal managed runtime that carries the SDK and nothing
+    else.
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        return {}
 
     widths, heights, modes, sizes = [], [], [], []
     seen = 0

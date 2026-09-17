@@ -33,12 +33,14 @@ dependencies = [
     # bundle is versioned separately (3.x) and also satisfies this tool -- see
     # dbr_autotune/sdk.py, which accepts either.
     "dynamsoft-barcode-reader-bundle>=11.0",
-    "pillow>=10.0",
 ]
 
 [project.optional-dependencies]
 # Page counting for PDFs. Without one of these a PDF is scored as a single page
 # and the run says so loudly.
+# Dataset profiling: resolution-derived scaling thresholds and the runtime
+# estimate. The search works without it.
+profile = ["pillow>=10.0"]
 pdf = ["pypdf>=4.0"]
 dev = ["pytest>=8.0", "ruff>=0.6"]
 

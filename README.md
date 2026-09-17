@@ -472,9 +472,17 @@ front of it.
 
 ## Requirements
 
-Python 3.10+. `pip install -e .` from the clone pulls in the SDK and Pillow;
-the `[pdf]` extra adds PDF page counting — without it a PDF is scored as a
-single page and the run says so.
+Python 3.10+. `pip install -e .` from the clone pulls in the SDK and nothing
+else. Two optional extras:
+
+| extra | adds | without it |
+|---|---|---|
+| `[profile]` | Pillow | no dataset profile, so no resolution-derived scaling thresholds and no runtime estimate; the search is unaffected |
+| `[pdf]` | pypdf | a PDF is scored as a single page, and the run says so |
+
+`pip install -e ".[profile,pdf]"` for everything. Keeping the base install to
+just the SDK means the tuner drops into a minimal runtime that carries the SDK
+and nothing else.
 
 Runs default to the public trial license from the DBR samples, which needs
 network access. Set `DBR_LICENSE` or pass `--license` for your own.
